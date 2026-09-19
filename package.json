@@ -1,0 +1,24 @@
+{
+  "name": "fleet-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ระบบจัดการรถเช่ารายวัน — Fleet Desk",
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "test": "node tests/smoke-test.cjs && node tests/privacy-test.cjs",
+    "check": "npm run test && npm run build",
+    "pretest": "npx esbuild src/entry.jsx --bundle --format=iife --loader:.jsx=jsx --jsx=automatic --target=es2019 --outfile=build/bundle-test.js --define:process.env.NODE_ENV='\"development\"'"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.10.1",
+    "lucide-react": "^1.46.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^3.4.19",
+    "jsdom": "^25.0.0"
+  }
+}

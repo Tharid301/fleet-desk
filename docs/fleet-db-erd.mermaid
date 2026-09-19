@@ -1,0 +1,220 @@
+erDiagram
+    VEHICLES ||--o{ VEHICLE_PHOTOS : has
+    VEHICLES ||--o| LOANS : financed_by
+    LOANS ||--o{ LOAN_PAYMENTS : has
+    VEHICLES ||--o{ SCHEDULE_EVENTS : has
+    VEHICLES ||--o{ MAINTENANCE_RECORDS : has
+    VEHICLES ||--o{ RENTAL_CONTRACTS : rented_via
+    VEHICLES ||--o{ DEPRECIATION_ENTRIES : has
+    VEHICLES ||--o{ TRANSACTIONS : relates_to
+
+    CUSTOMERS ||--o{ RENTAL_CONTRACTS : books
+
+    RENTAL_CONTRACTS ||--o{ VEHICLE_CONDITION_PHOTOS : has
+    RENTAL_CONTRACTS ||--o{ SCHEDULE_EVENTS : triggers
+    RENTAL_CONTRACTS ||--o{ TRANSACTIONS : generates
+
+    STAFF ||--o{ SALARY_HISTORY : has
+    STAFF ||--o{ SCHEDULE_EVENTS : assigned_to
+    STAFF ||--o{ TRANSACTIONS : generates
+    STAFF ||--o| USERS : has_login
+
+    LOANS ||--o{ TRANSACTIONS : generates
+
+    CHART_OF_ACCOUNTS ||--o{ TRANSACTIONS : categorizes
+    CHART_OF_ACCOUNTS ||--o{ RECURRING_EXPENSE_TEMPLATES : categorizes
+
+    USERS ||--o{ AUDIT_LOG : performs
+
+    VEHICLES {
+        int id PK
+        string plate_number
+        string province
+        string brand
+        string model
+        string category
+        string fuel_type
+        int doors
+        bool has_bed
+        string status
+        decimal daily_rate
+        decimal purchase_cost
+        decimal salvage_value
+        int depreciation_years
+        date purchase_date
+        int mileage
+        date registration_expiry
+        date insurance_expiry
+    }
+
+    VEHICLE_PHOTOS {
+        int id PK
+        int vehicle_id FK
+        string photo_url
+        bool is_primary
+        datetime uploaded_at
+    }
+
+    LOANS {
+        int id PK
+        int vehicle_id FK
+        string lender_name
+        decimal principal_amount
+        decimal monthly_payment
+        decimal interest_rate_pct
+        date start_date
+        int term_months
+        string status
+    }
+
+    LOAN_PAYMENTS {
+        int id PK
+        int loan_id FK
+        date payment_date
+        decimal amount
+        decimal principal_portion
+        decimal interest_portion
+    }
+
+    CUSTOMERS {
+        int id PK
+        string full_name
+        string id_card_number
+        string driver_license_number
+        string phone
+        string email
+        bool blacklist_flag
+        string blacklist_reason
+    }
+
+    RENTAL_CONTRACTS {
+        int id PK
+        int vehicle_id FK
+        int customer_id FK
+        datetime start_datetime
+        datetime end_datetime_planned
+        datetime actual_return_datetime
+        decimal daily_rate_agreed
+        decimal deposit_amount
+        decimal total_amount
+        decimal late_fee
+        decimal damage_fee
+        int mileage_out
+        int mileage_in
+        string status
+        int created_by_staff_id FK
+    }
+
+    VEHICLE_CONDITION_PHOTOS {
+        int id PK
+        int rental_contract_id FK
+        string photo_url
+        string stage
+        datetime uploaded_at
+    }
+
+    SCHEDULE_EVENTS {
+        int id PK
+        int vehicle_id FK
+        string event_type
+        datetime scheduled_at
+        datetime completed_at
+        int related_contract_id FK
+        int assigned_staff_id FK
+        string note
+    }
+
+    MAINTENANCE_RECORDS {
+        int id PK
+        int vehicle_id FK
+        string type
+        string description
+        decimal cost
+        string vendor_name
+        int odometer_at_service
+        date service_date
+        date next_service_due_date
+        string invoice_url
+    }
+
+    STAFF {
+        int id PK
+        string name
+        string position
+        bool is_owner
+        string phone
+        date start_date
+        date end_date
+        string status
+    }
+
+    SALARY_HISTORY {
+        int id PK
+        int staff_id FK
+        decimal monthly_salary
+        date effective_from
+        date effective_to
+        string note
+    }
+
+    CHART_OF_ACCOUNTS {
+        int id PK
+        string code
+        string name
+        string account_type
+        bool is_active
+    }
+
+    TRANSACTIONS {
+        int id PK
+        int vehicle_id FK
+        int account_id FK
+        int rental_contract_id FK
+        int staff_id FK
+        int loan_id FK
+        string transaction_type
+        decimal amount
+        date transaction_date
+        string description
+        string payment_method
+        string receipt_url
+        int created_by_staff_id FK
+    }
+
+    RECURRING_EXPENSE_TEMPLATES {
+        int id PK
+        int account_id FK
+        string description
+        decimal amount
+        int day_of_month
+        bool active
+    }
+
+    DEPRECIATION_ENTRIES {
+        int id PK
+        int vehicle_id FK
+        string period_year_month
+        decimal amount
+        decimal accumulated_depreciation
+        decimal book_value_after
+    }
+
+    USERS {
+        int id PK
+        int staff_id FK
+        string username
+        string password_hash
+        string role
+        datetime last_login
+    }
+
+    AUDIT_LOG {
+        int id PK
+        int user_id FK
+        string action
+        string table_name
+        int record_id
+        json old_value
+        json new_value
+        datetime created_at
+    }

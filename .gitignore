@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# build output (สร้างใหม่ได้ ไม่ต้องเก็บใน git)
+build/
+dist/
+*.bundle.js
+
+# ไฟล์ระบบ
+.DS_Store
+Thumbs.db
+
+# ความลับ — ห้าม commit เด็ดขาด
+.env
+.env.local
+.env.*.local
+*.key
+secrets.json
