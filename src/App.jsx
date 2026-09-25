@@ -7,6 +7,8 @@ import {
   PiggyBank, Image as ImageIcon, LogOut, Download, Lock, ClipboardList, Users, Eye,
   Phone, Mail, MapPin, MessageSquare, Copy, Check, Handshake, Settings, Archive, FileText, Filter, Camera,
 } from "lucide-react";
+// ชื่อบริษัท เบอร์โทร URL ฯลฯ อยู่ที่ไฟล์นี้ไฟล์เดียว — เปลี่ยนแบรนด์แก้ที่ brand.json
+import COMPANY from "./brand.json";
 
 /* ================= tokens ================= */
 const INK = "#23262B";
@@ -697,7 +699,7 @@ function getFreeWindows(busy, dayStart, dayEnd) {
 /* ================= export helpers ================= */
 function buildFleetCustomerSheets(cars) {
   const aoa = [
-    ["รายการรถให้เช่า — Fleet Desk"], [""],
+    [`รายการรถให้เช่า — ${COMPANY.name}`], [""],
     ["ทะเบียน", "ยี่ห้อ", "รุ่น", "สี", "ประเภท", "เชื้อเพลิง", "จำนวนประตู", "กระบะ", "สถานะ", "ค่าเช่า/วัน (บาท)"],
     ...cars.map((c) => [c.plate, c.brand, c.model, (COLORS.find((x) => x.key === c.color) || {}).label || "-", c.category, c.fuel, c.doors, c.bed, STATUS[c.status].label, R(c.rate)]),
   ];
@@ -706,7 +708,7 @@ function buildFleetCustomerSheets(cars) {
 function buildAccountingSheets(cars, overhead, bookings, otherExpenses) {
   const pnl = computePnL(cars, overhead, bookings, otherExpenses, APP_TODAY.slice(0, 7));
   const pnlAoa = [
-    ["งบกำไรขาดทุน — Fleet Desk — เดือนปัจจุบัน"], [""],
+    [`งบกำไรขาดทุน — ${COMPANY.name} — เดือนปัจจุบัน`], [""],
     ["รายการ", "จำนวนเงิน (บาท)"],
     ["รายได้ค่าเช่ารถของเพจเอง", R(pnl.pageOwnRevenue)],
     ["รายได้ค่าคอมมิชชั่นจากรถพาร์ทเนอร์", R(pnl.commissionRevenue)],
@@ -889,7 +891,7 @@ function buildInvestorSheets(cars, overhead, bookings, scheduleEvents, otherExpe
   const avgUtil = Math.round(cars.reduce((s, c) => s + computeUtilization(c, scheduleEvents), 0) / cars.length);
   const margin = pnl.revenue ? Math.round((pnl.netProfit / pnl.revenue) * 100) : 0;
   const summaryAoa = [
-    ["สรุปภาพรวมกิจการ — Fleet Desk"], [""],
+    [`สรุปภาพรวมกิจการ — ${COMPANY.name}`], [""],
     ["รายการ", "ค่า"],
     ["จำนวนรถในกอง (รวมพาร์ทเนอร์)", cars.length],
     ["จำนวนรถของเพจเอง", cars.filter((c) => c.ownerType !== "partner").length],
@@ -3670,14 +3672,6 @@ function SettingsModal({ termsText, setTermsText, bankInfo, setBankInfo, onClose
 /* ================= public homepage ================= */
 // Placeholder company landing page. Structure follows a standard rental-company site;
 // visual design is intentionally simple so it can be replaced with a real design later.
-const COMPANY = {
-  name: "ไทยรถเช่า",
-  tagline: "เช่ารถง่าย ราคาตรงไปตรงมา รับรถได้ถึงสนามบิน",
-  phone: "093-421-2761",
-  lineId: "@thairentcar",
-  email: "contact@thairentcar.example",
-  address: "กรุงเทพฯ · นนทบุรี · สมุทรปราการ",
-};
 function HomePage({ cars, onBook, onStaffLogin }) {
   const [wideHome, setWideHome] = useState(() => { const p = loadLayoutPref(); return p === "desktop" ? true : p === "mobile" ? false : null; });
   const [winW, setWinW] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
@@ -3815,7 +3809,7 @@ function HomePage({ cars, onBook, onStaffLogin }) {
           <button onClick={onBook} className="px-6 py-3 rounded-lg text-[13px] font-semibold" style={{ background: PAPER, color: INK }}>เช็ครถว่าง &amp; จองเลย</button>
           <div className="mt-4 pt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11.5px]" style={{ borderTop: "1px solid #FFFFFF22", color: "#C9CDD3" }}>
             <span className="flex items-center gap-1"><Phone size={12} />{COMPANY.phone}</span>
-            <span className="flex items-center gap-1"><MessageSquare size={12} />LINE {COMPANY.lineId}</span>
+            {COMPANY.lineId && <span className="flex items-center gap-1"><MessageSquare size={12} />LINE {COMPANY.lineId}</span>}
             <span className="flex items-center gap-1"><Mail size={12} />{COMPANY.email}</span>
           </div>
         </div>
@@ -4111,7 +4105,7 @@ function LoginScreen({ accounts, onLogin, onPublicView, onBackHome }) {
     <div className="min-h-screen w-full overflow-x-hidden flex items-center justify-center p-4" style={{ background: BOARD, backgroundImage: "radial-gradient(#3A3E45 1px, transparent 1px)", backgroundSize: "16px 16px" }}>
       <style>{FONTS}</style>
       <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: PAPER }}>
-        <div className="text-center mb-4"><div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em", color: INK }} className="text-2xl font-bold uppercase">Fleet Desk</div><div className="text-[12px]" style={{ color: MUTE }}>สำหรับเจ้าหน้าที่ · เข้าสู่ระบบเพื่อจัดการกองรถ</div></div>
+        <div className="text-center mb-4"><div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em", color: INK }} className="text-2xl font-bold uppercase">{COMPANY.systemName}</div><div className="text-[12px]" style={{ color: MUTE }}>สำหรับเจ้าหน้าที่ · เข้าสู่ระบบเพื่อจัดการกองรถ</div></div>
         <div className="rounded-md p-2.5 mb-4 text-[10.5px]" style={{ background: "#3B5BA514", color: "#3B5BA5" }}>
           <b>หมายเหตุสำหรับตอนใช้งานจริง:</b> หน้านี้ควรอยู่คนละลิงก์กับหน้าลูกค้า เช่น หน้าลูกค้าอยู่ที่ <span className="font-mono">ชื่อเว็บ.com</span> ส่วนหน้านี้อยู่ที่ <span className="font-mono">ชื่อเว็บ.com/admin</span> ลูกค้าจะได้ไม่เห็นว่ามีบัญชีพนักงานอะไรบ้าง
         </div>
@@ -4248,7 +4242,7 @@ export default function App() {
       <div className="flex h-screen overflow-hidden">
         <aside className="w-60 flex-shrink-0 flex flex-col overflow-y-auto" style={{ background: "#1F2226" }}>
           <div className="px-5 py-5 border-b" style={{ borderColor: "#00000040" }}>
-            <div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-xl font-bold uppercase text-white">Fleet Desk</div>
+            <div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-xl font-bold uppercase text-white">{COMPANY.systemName}</div>
             <div className="text-[11px]" style={{ color: MUTE }}>ระบบจัดการรถเช่า</div>
           </div>
           <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: "#00000040" }}>
@@ -4305,7 +4299,7 @@ export default function App() {
       {!isDesktop && (
       <div className="max-w-md mx-auto pb-8">
         <div className="px-4 pt-6 pb-2 flex items-center justify-between">
-          <div><div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-xl font-bold uppercase text-white">Fleet Desk</div><div className="text-[11px]" style={{ color: MUTE }}>{formatThaiDateShort(APP_TODAY)} · {cars.length} คันในกอง</div></div>
+          <div><div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-xl font-bold uppercase text-white">{COMPANY.systemName}</div><div className="text-[11px]" style={{ color: MUTE }}>{formatThaiDateShort(APP_TODAY)} · {cars.length} คันในกอง</div></div>
           <div className="flex items-center gap-1.5">
             <button onClick={() => setPublicMode(true)} className="p-2 rounded-full" style={{ background: PAPER }}><Eye size={15} color={INK} /></button>
             {session.role === "owner" && <button onClick={() => setAccountsOpen(true)} className="p-2 rounded-full" style={{ background: PAPER }}><Users size={15} color={INK} /></button>}

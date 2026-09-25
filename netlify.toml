@@ -1,0 +1,13 @@
+# ตั้งค่าสำหรับ Netlify — build อัตโนมัติทุกครั้งที่ push ขึ้น GitHub
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# เปิดหน้าแรก (/) ให้แสดงไฟล์เว็บที่ build ได้
+[[redirects]]
+  from = "/"
+  to = "/fleet-desk-web.html"
+  status = 200

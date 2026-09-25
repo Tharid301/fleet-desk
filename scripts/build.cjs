@@ -14,6 +14,7 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
+const brand = require("../src/brand.json");
 const BUILD = path.join(ROOT, "build");
 fs.mkdirSync(BUILD, { recursive: true });
 
@@ -69,7 +70,7 @@ const html = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fleet Desk — ระบบจัดการรถเช่า</title>
+<title>${brand.name} — รถเช่า</title>
 <style>${css}</style>
 <style>
   html, body { margin:0; padding:0; background:#2A2E33; -webkit-text-size-adjust:100%; }
