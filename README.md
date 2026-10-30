@@ -97,3 +97,12 @@ git push
 **ข้อจำกัดสำคัญ:** ข้อมูลเก็บในเบราว์เซอร์เครื่องเดียว · พื้นที่ ~5 MB (เก็บงานที่เอกสารครบได้ 3-5 งาน) · Safari ลบทิ้งถ้าไม่เข้าเว็บเกิน 7 วัน
 
 รายละเอียดและแผนขั้นต่อไป ดู `docs/fleet-desk-architecture.md` หัวข้อ 9
+
+### Supabase
+
+| | |
+|---|---|
+| โปรเจกต์ | `fleet-desk-dev` · Singapore · รัน `01_schema.sql` + `02_public_booking.sql` แล้ว (31 ต.ค. 2569) |
+| ค่าเชื่อมต่อ | `src/supabase.json` — URL + publishable key (ใส่ในหน้าเว็บได้ ปลอดภัยเพราะทุกตารางเปิด RLS) |
+
+**ห้ามใส่ secret key / service_role key / รหัสผ่านฐานข้อมูล ลงในโค้ดหรือ git เด็ดขาด**
