@@ -1273,7 +1273,7 @@ function CarForm({ car, onSave, onClose, onDelete, showFinance }) {
   const isNew = !car || fromPurchase;
   const [f, setF] = useState(() => (car && !car.__newFromPurchase) ? { ...car, loanEnabled: !!car.loan, loan: car.loan || { monthly: 5000, monthsLeft: 24, daysRentedThisMonth: 0, interestMonthly: 0 } } : {
     plate: "", province: "", brand: "", model: "", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "white",
-    status: "available", rate: 1000, hourlyRate: 60, gpsMonthlyFee: 300, mileage: 0, util: 60, income: 0, expense: { fuel: 0, wash: 0, repair: 0, insurance: 0 },
+    status: "available", rate: 1000, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 0, util: 60, income: 0, expense: { fuel: 0, wash: 0, repair: 0, insurance: 0 },
     reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "", prbExpiry: "", taxExpiry: "",
     photoUrl: "", photos: [], purchaseCost: (car && car.purchaseCost) || 0, depreciationYears: 5, ownerType: "page", partnerName: "", commissionPct: 20, withholdingPct: 5,
     loanEnabled: false, loan: { monthly: 5000, monthsLeft: 24, daysRentedThisMonth: 0, interestMonthly: 0 },
