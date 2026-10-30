@@ -23,7 +23,7 @@ const run = (cmd) => execSync(cmd, { cwd: ROOT, stdio: "inherit" });
 console.log("[1/3] bundling JS...");
 run(
   "npx esbuild src/entry.jsx --bundle --format=iife --minify " +
-  "--loader:.jsx=jsx --jsx=automatic --target=es2019 " +
+  "--loader:.jsx=jsx --loader:.webp=dataurl --jsx=automatic --target=es2019 " +
   `--outfile=${path.join("build", "bundle.js")} ` +
   '--define:process.env.NODE_ENV=\'"production"\''
 );

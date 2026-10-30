@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 // ชื่อบริษัท เบอร์โทร URL ฯลฯ อยู่ที่ไฟล์นี้ไฟล์เดียว — เปลี่ยนแบรนด์แก้ที่ brand.json
 import COMPANY from "./brand.json";
+import PAYMENT_QR from "./assets/payment-qr.webp";
 
 /* ================= tokens ================= */
 const INK = "#23262B";
@@ -103,57 +104,69 @@ function calcDuration(startDate, startTime, endDate, endTime) {
 }
 
 /* ================= chat / company constants ================= */
-const DEFAULT_COMPANY_BANK_INFO = [{ bank: "กสิกรไทย (KBank)", accountNo: "xxx-x-xxxxx-x", accountName: "ชื่อบัญชีเพจ (ตัวอย่าง)" }];
-const DEFAULT_RESERVATION_DEPOSIT = 500;
-const DEFAULT_CONTRACT_TERMS_TEXT = `เงื่อนไขการเช่ารถ (สรุปย่อ)
-1. ผู้เช่าต้องมีใบขับขี่ที่ยังไม่หมดอายุ และแสดงบัตรประชาชนตัวจริงวันรับรถ
-2. คืนรถช้ากว่ากำหนด คิดเพิ่มชั่วโมงละ 100 บาท (ไม่เกิน 3 ชม.) หากช้าเกิน 3 ชม. คิดเพิ่มเป็นค่าเช่า 1 วันเต็มแทน ทั้งนี้หากคืนรถก่อนเวลา จะยึดราคาตามที่จองไว้ ไม่มีการคืนเงินส่วนต่าง
-3. คืนรถพร้อมระดับน้ำมัน/แบตเตอรี่เท่าที่รับไป ไม่ครบคิดค่าปรับตามจริง
-4. เงินมัดจำ (ค้ำประกัน) คืนเต็มจำนวนหากรถไม่มีความเสียหาย ณ วันคืนรถ
-5. กรณียกเลิกการจอง เงินโอนจองที่ชำระไว้จะไม่คืนให้ตามเงื่อนไขการจอง
-* กรุณาตรวจสอบเงื่อนไขฉบับเต็มในสัญญาเช่าอีกครั้งก่อนรับรถค่ะ (แก้ไขข้อความนี้ได้ให้ตรงกับสัญญาจริงของร้าน)`;
+const DEFAULT_COMPANY_BANK_INFO = [{ bank: "พร้อมเพย์ (สแกน QR)", accountNo: "-", accountName: COMPANY.legalName }];
+const DEFAULT_RESERVATION_DEPOSIT = 1000;
+// เงื่อนไขจริงจากเจ้าของ (30 ต.ค. 2569)
+const DEFAULT_CONTRACT_TERMS_TEXT = `การจอง: โอนจอง 1,000 บาท · วันรับรถจ่ายส่วนที่เหลือ + มัดจำ 2,000 บาท (คืนให้ในวันคืนรถ)
+
+1. ไม่อนุญาตให้นำรถออกนอกจังหวัดน่าน ยกเว้นแจ้งทางเพจและได้รับการพิจารณาแล้ว
+2. รถทุกคัน ยกเว้น Pajero และ Fortuner ไม่อนุญาตให้ขึ้นบ้านเกวต เปียงซ้อ โดยเด็ดขาด
+   ห้วยหมี (ไม่เกินธรรมชาติสะปัน) · ห้วยโทน (ไม่เกินอิงไอหมอก) · ฝ่าฝืนปรับ 10,000 บาท
+3. รถมีประกันชั้น 1 หากเกิดอุบัติเหตุให้แจ้งทางเพจเป็นอันดับแรก
+4. หากเกิดอุบัติเหตุและลูกค้าเป็นฝ่ายผิด มีค่า excess 2,000-5,000 บาทตามความรุนแรง หากไม่ใช่ฝ่ายผิดไม่ต้องจ่ายใดๆ ทั้งสิ้น
+5. ยกเลิกการจอง ทางเพจขอสงวนสิทธิ์ไม่คืนเงินจอง`;
 
 /* ================= mock fleet data ================= */
 const INITIAL_CARS = [
-  { id: 1, plate: "1กข 2345", province: "กรุงเทพฯ", brand: "Honda", model: "City", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "silver", status: "available", rate: 1700, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 34210, util: 72, photoUrl: "", reservationDeposit: 500, securityDeposit: 2000, insuranceExpiry: "2026-08-20", prbExpiry: "2026-08-20", taxExpiry: "2026-09-15",
+  { id: 1, plate: "รอระบุ 1", province: "น่าน", brand: "Honda", model: "Accord 2.0 Hybrid (2021)", category: "Sedan", fuel: "Hybrid", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "black", status: "available", rate: 2500, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 34210, util: 72, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-08-20", prbExpiry: "2026-08-20", taxExpiry: "2026-09-15",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 18900, expense: { fuel: 1200, wash: 400, repair: 0, insurance: 850 },
     purchaseCost: 579000, depreciationYears: 5,
     loan: { monthly: 4800, monthsLeft: 37, daysRentedThisMonth: 2, interestMonthly: 1200 } },
-  { id: 2, plate: "2ขค 8891", province: "กรุงเทพฯ", brand: "Toyota", model: "Yaris", category: "Hatchback", fuel: "เบนซิน", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "red", status: "rented", rate: 850, hourlyRate: 60, gpsMonthlyFee: 300, mileage: 51880, util: 88, photoUrl: "", reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "2026-07-28", prbExpiry: "2026-07-28", taxExpiry: "2026-11-30",
+  { id: 2, plate: "รอระบุ 2", province: "น่าน", brand: "Toyota", model: "Fortuner 2.4 (2018)", category: "PPV", fuel: "ดีเซล", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "rented", rate: 1800, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 51880, util: 88, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-07-28", prbExpiry: "2026-07-28", taxExpiry: "2026-11-30",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 22500, expense: { fuel: 1500, wash: 400, repair: 600, insurance: 850 },
     purchaseCost: 569000, depreciationYears: 5,
     loan: null },
-  { id: 3, plate: "1กท 4477", province: "นนทบุรี", brand: "Honda", model: "HR-V", category: "SUV", fuel: "เบนซิน", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "available", rate: 1400, hourlyRate: 90, gpsMonthlyFee: 300, mileage: 21050, util: 65, photoUrl: "", reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "2027-02-10", prbExpiry: "2027-02-10", taxExpiry: "2027-01-05",
+  { id: 3, plate: "รอระบุ 3", province: "น่าน", brand: "Honda", model: "Civic 2.0 Hybrid (2026)", category: "Sedan", fuel: "Hybrid", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "available", rate: 1799, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 21050, util: 65, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2027-02-10", prbExpiry: "2027-02-10", taxExpiry: "2027-01-05",
     ownerType: "partner", partnerName: "คุณวิชัย (พาร์ทเนอร์)", commissionPct: 20, withholdingPct: 5,
     income: 26400, expense: { fuel: 1800, wash: 400, repair: 0, insurance: 1100 },
     purchaseCost: 0, depreciationYears: 5,
     loan: null },
-  { id: 4, plate: "3ฮบ 1290", province: "กรุงเทพฯ", brand: "Toyota", model: "Fortuner", category: "PPV", fuel: "ดีเซล", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "black", status: "wash", rate: 2200, hourlyRate: 140, gpsMonthlyFee: 300, mileage: 68900, util: 58, photoUrl: "", reservationDeposit: 1000, securityDeposit: 3000, insuranceExpiry: "2026-09-02", prbExpiry: "2026-09-02", taxExpiry: "2026-08-25",
+  { id: 4, plate: "รอระบุ 4", province: "น่าน", brand: "Honda", model: "HR-V 1.5 e:HEV (2025)", category: "SUV", fuel: "Hybrid", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "gray", status: "wash", rate: 1700, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 68900, util: 58, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-09-02", prbExpiry: "2026-09-02", taxExpiry: "2026-08-25",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 31200, expense: { fuel: 2600, wash: 500, repair: 1200, insurance: 1400 },
     purchaseCost: 1459000, depreciationYears: 5,
     loan: null },
-  { id: 5, plate: "4กก 5567", province: "สมุทรปราการ", brand: "Toyota", model: "Hilux Revo", category: "Pickup", fuel: "ดีเซล", doors: "4 ประตู", bed: "มีกระบะ", color: "white", status: "repair", rate: 1300, hourlyRate: 85, gpsMonthlyFee: 300, mileage: 77410, util: 41, photoUrl: "", reservationDeposit: 800, securityDeposit: 2000, insuranceExpiry: "2026-12-01", prbExpiry: "2026-12-01", taxExpiry: "2026-12-20",
+  { id: 5, plate: "รอระบุ 5", province: "น่าน", brand: "Jaecoo", model: "5 EV (2026)", category: "SUV", fuel: "EV", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "repair", rate: 1600, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 77410, util: 41, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-12-01", prbExpiry: "2026-12-01", taxExpiry: "2026-12-20",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 14200, expense: { fuel: 2000, wash: 300, repair: 4500, insurance: 1100 },
     purchaseCost: 789000, depreciationYears: 5,
     loan: { monthly: 8000, monthsLeft: 48, daysRentedThisMonth: 5, interestMonthly: 2400 } },
-  { id: 6, plate: "1วอ 9981", province: "กรุงเทพฯ", brand: "MG", model: "MG4", category: "Hatchback", fuel: "EV", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "blue", status: "available", rate: 1100, hourlyRate: 70, gpsMonthlyFee: 300, mileage: 12980, util: 54, photoUrl: "", reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "2026-08-12", prbExpiry: "2026-08-12", taxExpiry: "2027-03-01",
+  { id: 6, plate: "รอระบุ 6", province: "น่าน", brand: "Suzuki", model: "XL7 1.5 7 ที่นั่ง (2021)", category: "MPV/Van", fuel: "เบนซิน", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "silver", status: "available", rate: 1300, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 12980, util: 54, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-08-12", prbExpiry: "2026-08-12", taxExpiry: "2027-03-01",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 15800, expense: { fuel: 450, wash: 400, repair: 0, insurance: 900 },
     purchaseCost: 799000, depreciationYears: 5,
     loan: null },
-  { id: 7, plate: "5ขข 3345", province: "กรุงเทพฯ", brand: "BYD", model: "Atto 3", category: "SUV", fuel: "EV", doors: "5 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "rented", rate: 1650, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 9040, util: 81, photoUrl: "", reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "2027-05-15", prbExpiry: "2027-05-15", taxExpiry: "2027-04-10",
+  { id: 7, plate: "รอระบุ 7", province: "น่าน", brand: "Toyota", model: "Corolla Altis 1.8 (2018)", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "silver", status: "rented", rate: 1300, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 9040, util: 81, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2027-05-15", prbExpiry: "2027-05-15", taxExpiry: "2027-04-10",
     ownerType: "partner", partnerName: "คุณมณี (พาร์ทเนอร์)", commissionPct: 20, withholdingPct: 5,
     income: 24700, expense: { fuel: 600, wash: 400, repair: 0, insurance: 1100 },
     purchaseCost: 0, depreciationYears: 5,
     loan: null },
-  { id: 8, plate: "2กค 6612", province: "นนทบุรี", brand: "Honda", model: "Civic", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "gray", status: "available", rate: 1200, hourlyRate: 80, gpsMonthlyFee: 300, mileage: 40330, util: 69, photoUrl: "", reservationDeposit: 500, securityDeposit: 1500, insuranceExpiry: "2026-10-05", prbExpiry: "2026-10-05", taxExpiry: "2026-10-05",
+  { id: 8, plate: "รอระบุ 8", province: "น่าน", brand: "Honda", model: "City 1.0 Turbo SV (2020)", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "black", status: "available", rate: 900, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 40330, util: 69, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "2026-10-05", prbExpiry: "2026-10-05", taxExpiry: "2026-10-05",
     ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
     income: 19600, expense: { fuel: 1400, wash: 400, repair: 0, insurance: 950 },
     purchaseCost: 869000, depreciationYears: 5,
+    loan: null },
+  { id: 9, plate: "รอระบุ 9", province: "น่าน", brand: "Toyota", model: "Vios 1.5 (2020)", category: "Sedan", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "white", status: "available", rate: 900, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 0, util: 0, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "", prbExpiry: "", taxExpiry: "",
+    ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
+    income: 0, expense: { fuel: 0, wash: 0, repair: 0, insurance: 0 },
+    purchaseCost: 0, depreciationYears: 5,
+    loan: null },
+  { id: 10, plate: "รอระบุ 10", province: "น่าน", brand: "Mitsubishi", model: "Attrage 1.2 (2020)", category: "Eco Car", fuel: "เบนซิน", doors: "4 ประตู", bed: "ไม่มีกระบะ", color: "red", status: "available", rate: 800, hourlyRate: 100, gpsMonthlyFee: 300, mileage: 0, util: 0, photoUrl: "", reservationDeposit: 1000, securityDeposit: 2000, insuranceExpiry: "", prbExpiry: "", taxExpiry: "",
+    ownerType: "page", partnerName: "", commissionPct: 0, withholdingPct: 0,
+    income: 0, expense: { fuel: 0, wash: 0, repair: 0, insurance: 0 },
+    purchaseCost: 0, depreciationYears: 5,
     loan: null },
 ];
 
@@ -961,7 +974,8 @@ function loadLayoutPref() {
 function saveLayoutPref(v) {
   try { if (v) window.localStorage.setItem(LAYOUT_KEY, v); else window.localStorage.removeItem(LAYOUT_KEY); } catch (e) {}
 }
-const STORAGE_KEY = "fleetdesk_v1";
+// v2: เปลี่ยนเป็นรถจริงของร้าน — ข้อมูลเดโมเก่าในเบราว์เซอร์จะไม่ถูกโหลดอีก
+const STORAGE_KEY = "fleetdesk_v2";
 function loadSaved() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -3686,9 +3700,9 @@ function HomePage({ cars, onBook, onStaffLogin }) {
   const minRate = cars.length ? Math.min(...cars.map((c) => c.rate)) : 0;
   const features = [
     { icon: ShieldCheck, title: "ประกันชั้น 1 ทุกคัน", desc: "ขับสบายใจ มีประกันคุ้มครองเต็มรูปแบบ" },
-    { icon: MapPin, title: "รับ-ส่งถึงที่", desc: "สนามบิน สถานีขนส่ง หรือจุดที่นัดหมาย" },
+    { icon: MapPin, title: "รับ-ส่งรถฟรี", desc: "ทุกที่ในตัวเมืองน่าน สนามบิน บขส. โรงแรม ร้านอาหาร สถานที่ท่องเที่ยว" },
     { icon: Wallet, title: "ราคาชัดเจน", desc: "แจ้งราคารวมก่อนจอง ไม่มีค่าใช้จ่ายแอบแฝง" },
-    { icon: Sparkles, title: "รถสะอาดพร้อมใช้", desc: "ล้างและตรวจเช็คสภาพก่อนส่งมอบทุกครั้ง" },
+    { icon: Sparkles, title: "สะอาด อบโอโซน", desc: "ล้างทำความสะอาดและอบโอโซนฆ่าเชื้อก่อนส่งมอบทุกคัน" },
   ];
   const steps = [
     { n: 1, title: "เลือกวันและรถ", desc: "เช็ควันว่างและราคาได้เองตลอด 24 ชม." },
@@ -3811,6 +3825,7 @@ function HomePage({ cars, onBook, onStaffLogin }) {
             <span className="flex items-center gap-1"><Phone size={12} />{COMPANY.phone}</span>
             {COMPANY.lineId && <span className="flex items-center gap-1"><MessageSquare size={12} />LINE {COMPANY.lineId}</span>}
             <span className="flex items-center gap-1"><Mail size={12} />{COMPANY.email}</span>
+            {COMPANY.facebook && <a href={COMPANY.facebook} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 underline"><MessageSquare size={12} />เพจ Facebook</a>}
           </div>
         </div>
       </div>
@@ -3818,7 +3833,7 @@ function HomePage({ cars, onBook, onStaffLogin }) {
       {/* footer with discreet staff entry */}
       <div style={{ borderTop: `1px solid ${PAPER_LINE}` }}>
         <div className={`${wide ? "max-w-5xl" : "max-w-md"} mx-auto px-4 py-5 flex flex-wrap items-center justify-between gap-2`}>
-          <div className="text-[11px]" style={{ color: MUTE }}>© 2569 {COMPANY.name} · {COMPANY.address}</div>
+          <div className="text-[11px]" style={{ color: MUTE }}>© 2569 {COMPANY.legalName} · {COMPANY.address}</div>
           <button onClick={onStaffLogin} className="text-[11px] flex items-center gap-1" style={{ color: MUTE }}><Lock size={11} />สำหรับเจ้าหน้าที่</button>
         </div>
       </div>
@@ -4067,6 +4082,7 @@ function CustomerAvailabilityView({ cars, scheduleEvents, onExit, onSubmitBookin
               <div className="rounded-md p-2 mb-2 text-[11.5px] space-y-0.5" style={{ background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK }}>
                 {bankInfo.map((b, i) => <div key={i}>{b.bank} · {b.accountNo} · {b.accountName}</div>)}
               </div>
+              <img src={PAYMENT_QR} alt={`QR พร้อมเพย์ ${COMPANY.legalName}`} className="block mx-auto mb-2 rounded-md" style={{ width: 200, maxWidth: "100%" }} />
               <PhotoAttach label="สลิปโอนมัดจำ (จำเป็น — ต้องโอนก่อนจึงจะส่งคำขอได้)" value={reqForm.reservationSlipUrl} onChange={(v) => setReqForm((p) => ({ ...p, reservationSlipUrl: v }))} />
             </div>
 
