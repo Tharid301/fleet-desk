@@ -10,6 +10,13 @@ import {
 // ชื่อบริษัท เบอร์โทร URL ฯลฯ อยู่ที่ไฟล์นี้ไฟล์เดียว — เปลี่ยนแบรนด์แก้ที่ brand.json
 import COMPANY from "./brand.json";
 import PAYMENT_QR from "./assets/payment-qr.webp";
+import {
+  DB_MODE, DEMO_MODE, newId, todayBkk, loadPublicData, loadStaffData, pushCars, pushBookings, pushEvents, pushRecords,
+  pushSetting, submitBookingRequest, currentProfile, signIn, signOut, sessionFromProfile, listProfiles, updateProfile,
+} from "./db.js";
+
+// ค่าจาก <select> เป็นข้อความเสมอ: เดโมใช้รหัสรถเป็นตัวเลข ระบบจริงใช้ UUID
+const carIdFromValue = (v) => (v === "" || v === null || v === undefined ? null : String(Number(v)) === String(v) ? Number(v) : v);
 
 /* ================= tokens ================= */
 const INK = "#23262B";
@@ -67,7 +74,8 @@ const canEditBookingTab = (role) => role === "owner" || role === "staff";
 const DEMO_PASSWORD = "demo1234";
 
 /* ================= dates ================= */
-const APP_TODAY = "2026-08-05";
+// โหมดเดโมใช้วันที่ตายตัวให้ข้อมูลตัวอย่างตรงกัน · ใช้งานจริงใช้วันนี้ตามเวลาไทย
+const APP_TODAY = DEMO_MODE ? "2026-08-05" : todayBkk();
 const THAI_MONTHS_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 const THAI_WEEKDAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
 function formatThaiDate(iso) { const d = new Date(iso + "T00:00:00"); return `วัน${THAI_WEEKDAYS[d.getDay()]}ที่ ${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear() + 543}`; }
@@ -232,7 +240,8 @@ const INITIAL_SCHEDULE_EVENTS = [
   { id: "e4", carId: 2, date: "2026-08-04", startHour: 8, endHour: 9, type: "wash", note: "ล้างก่อนส่งลูกค้า", groupId: "g4", bookingId: null },
 ];
 
-const HISTORY = [
+// ตัวเลขย้อนหลังสมมุติ — แสดงเฉพาะโหมดเดโม
+const HISTORY = !DEMO_MODE ? [] : [
   { month: "ม.ค.", revenue: 148000, netProfit: 21000 },
   { month: "ก.พ.", revenue: 152000, netProfit: 23500 },
   { month: "มี.ค.", revenue: 139000, netProfit: 16000 },
@@ -244,13 +253,14 @@ const HISTORY = [
 
 // Past-year summaries for the finance year-selector (point 3). Only totals are kept for prior years —
 // full monthly/category breakdowns would come from real stored transactions in production.
-const YEARLY_SUMMARY_HISTORY = [
+const YEARLY_SUMMARY_HISTORY = !DEMO_MODE ? [] : [
   { year: 2565, revenue: 1450000, netProfit: 198000, avgUtil: 58 },
   { year: 2566, revenue: 1620000, netProfit: 245000, avgUtil: 62 },
   { year: 2567, revenue: 1780000, netProfit: 289000, avgUtil: 66 },
   { year: 2568, revenue: 1950000, netProfit: 318000, avgUtil: 69 },
 ];
-const CURRENT_YEAR_BE = 2569;
+const CURRENT_YEAR_BE = Number(APP_TODAY.slice(0, 4)) + 543;
+const CURRENT_MONTH_LABEL = `${["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][Number(APP_TODAY.slice(5, 7)) - 1]} ${CURRENT_YEAR_BE}`;
 
 const DEFAULT_OVERHEAD = {
   staff: [
@@ -260,6 +270,7 @@ const DEFAULT_OVERHEAD = {
   ],
   rent: 8000, marketing: 3000, platformFee: 4000, other: 1500,
 };
+const EMPTY_OVERHEAD = { staff: [], rent: 0, marketing: 0, platformFee: 0, other: 0 };
 
 /* ================= ad-hoc expense ledger ================= */
 // CRITICAL ACCOUNTING DISTINCTION:
@@ -1262,7 +1273,7 @@ function CarForm({ car, onSave, onClose, onDelete, showFinance }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const setLoan = (k, v) => setF((p) => ({ ...p, loan: { ...p.loan, [k]: v } }));
-  const submit = () => { if (!f.plate.trim() || !f.brand.trim() || !f.model.trim()) return; const payload = { ...f, id: f.id || carCounter++, loan: f.loanEnabled ? f.loan : null }; delete payload.loanEnabled; onSave(payload); };
+  const submit = () => { if (!f.plate.trim() || !f.brand.trim() || !f.model.trim()) return; const payload = { ...f, id: f.id || newId(), loan: f.loanEnabled ? f.loan : null }; delete payload.loanEnabled; onSave(payload); };
   const inputCls = "w-full text-[13px] rounded-md px-2.5 py-2 outline-none";
   const inputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
 
@@ -1703,7 +1714,7 @@ function DragCalendarView({ cars, scheduleEvents, setScheduleEvents, wide }) {
   scheduleEvents.forEach((e) => { eventsByDate[`${e.carId}|${e.date}`] = e; });
   const groupEndDateOf = (groupId, carId) => { const all = scheduleEvents.filter((e) => e.groupId === groupId && e.carId === carId).map((e) => e.date); return all.sort()[all.length - 1]; };
 
-  const openCreate = (carId, date) => setModal({ mode: "create", initial: { carId, date, groupId: `grp${groupCounter++}`, startHour: 9, endHour: 18, type: "booked", note: "" } });
+  const openCreate = (carId, date) => setModal({ mode: "create", initial: { carId, date, groupId: newId(), startHour: 9, endHour: 18, type: "booked", note: "" } });
   const openEdit = (ev) => {
     if (ev.bookingId) { setModal({ mode: "locked", initial: { ...ev, groupEndDate: groupEndDateOf(ev.groupId, ev.carId) } }); return; }
     const groupDates = scheduleEvents.filter((e) => e.groupId === ev.groupId && e.carId === ev.carId).map((e) => e.date).sort();
@@ -1972,7 +1983,7 @@ function BookingForm({ booking, cars, onSave, onCancel, onDelete, onClose, readO
   const inputCls = "w-full text-[13px] rounded-md px-2.5 py-2 outline-none";
   const inputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
 
-  const submit = () => { if (!f.firstName.trim() || !f.phone.trim() || !f.carId) return; onSave({ ...f, id: f.id || `bk${bookingCounter++}`, pickupDayPayment, createdBy: f.createdBy || createdByName }); onClose(); };
+  const submit = () => { if (!f.firstName.trim() || !f.phone.trim() || !f.carId) return; onSave({ ...f, id: f.id || newId(), pickupDayPayment, createdBy: f.createdBy || createdByName }); onClose(); };
   const confirmBooking = () => { if (!f.firstName.trim() || !f.phone.trim() || !f.carId) return; onSave({ ...f, status: "active", pickupDayPayment, createdBy: f.createdBy || createdByName }); setConfirmEmailOpen(true); };
   const submitCancel = () => { onCancel({ ...f, status: "cancelled", cancelReason, depositRefunded }); onClose(); };
   // Proof attachments persist immediately on attach so nothing is silently lost if the user
@@ -1981,7 +1992,7 @@ function BookingForm({ booking, cars, onSave, onCancel, onDelete, onClose, readO
   const persistPatch = (patch) => {
     const updated = { ...f, ...patch };
     setF(updated);
-    onSave({ ...updated, id: updated.id || `bk${bookingCounter++}`, pickupDayPayment: updated.pickupDayPayment != null ? updated.pickupDayPayment : pickupDayPayment, createdBy: updated.createdBy || createdByName });
+    onSave({ ...updated, id: updated.id || newId(), pickupDayPayment: updated.pickupDayPayment != null ? updated.pickupDayPayment : pickupDayPayment, createdBy: updated.createdBy || createdByName });
   };
   const canClose = !!(f.reservationSlipUrl && f.contractDocUrl && f.handoverPhotoUrl && f.returnSlipUrl);
   const confirmClose = () => {
@@ -2025,7 +2036,7 @@ function BookingForm({ booking, cars, onSave, onCancel, onDelete, onClose, readO
             <Field label={<span className="flex items-center gap-1"><Mail size={12} />อีเมล</span>}>{effectiveReadOnly ? <ReadText v={f.email} /> : <input className={inputCls} style={inputStyle} value={f.email} onChange={(e) => set("email", e.target.value)} />}</Field>
           </div>
           <Field label="รถที่จอง">{effectiveReadOnly ? <ReadText v={car ? `${car.plate} · ${car.brand} ${car.model}` : "-"} /> : (
-            <select className={inputCls} style={inputStyle} value={f.carId || ""} onChange={(e) => { const id = Number(e.target.value); const sel = cars.find((c) => c.id === id); setF((p) => ({ ...p, carId: id, reservationDeposit: sel && sel.reservationDeposit != null ? sel.reservationDeposit : p.reservationDeposit, securityDeposit: sel && sel.securityDeposit != null ? sel.securityDeposit : p.securityDeposit })); }}>{cars.map((c) => <option key={c.id} value={c.id}>{c.plate} · {c.brand} {c.model}</option>)}</select>
+            <select className={inputCls} style={inputStyle} value={f.carId || ""} onChange={(e) => { const id = carIdFromValue(e.target.value); const sel = cars.find((c) => c.id === id); setF((p) => ({ ...p, carId: id, reservationDeposit: sel && sel.reservationDeposit != null ? sel.reservationDeposit : p.reservationDeposit, securityDeposit: sel && sel.securityDeposit != null ? sel.securityDeposit : p.securityDeposit })); }}>{cars.map((c) => <option key={c.id} value={c.id}>{c.plate} · {c.brand} {c.model}</option>)}</select>
           )}</Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label="วันรับรถ">{effectiveReadOnly ? <ReadText v={formatDMY(f.startDate)} /> : <input type="date" className={inputCls} style={inputStyle} value={f.startDate} onChange={(e) => set("startDate", e.target.value)} />}</Field>
@@ -2543,7 +2554,7 @@ function PnlLine({ label, value, bold, sub }) { return (<div className={`flex ju
 function StaffEditor({ staff, setOverhead }) {
   const update = (id, k, v) => setOverhead((p) => ({ ...p, staff: p.staff.map((s) => s.id === id ? { ...s, [k]: v } : s) }));
   const remove = (id) => setOverhead((p) => ({ ...p, staff: p.staff.filter((s) => s.id !== id) }));
-  const add = (isOwner) => setOverhead((p) => ({ ...p, staff: [...p.staff, { id: staffCounter++, name: isOwner ? "เจ้าของ/หุ้นส่วนใหม่" : "พนักงานใหม่", position: "", salary: 0, isOwner }] }));
+  const add = (isOwner) => setOverhead((p) => ({ ...p, staff: [...p.staff, { id: newId(), name: isOwner ? "เจ้าของ/หุ้นส่วนใหม่" : "พนักงานใหม่", position: "", salary: 0, isOwner }] }));
   const total = staff.reduce((s, p) => s + p.salary, 0);
   const inputCls = "w-full text-[12.5px] rounded-md px-2 py-1.5 outline-none"; const inputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
   return (
@@ -2560,13 +2571,13 @@ function StaffEditor({ staff, setOverhead }) {
   );
 }
 function MonthlyPanel({ cars, overhead, setOverhead, bookings, otherExpenses, claims, categories }) {
-  const CURRENT_LABEL = "ส.ค. 2569 (ปัจจุบัน)";
+  const CURRENT_LABEL = `${CURRENT_MONTH_LABEL} (ปัจจุบัน)`;
   const monthOptions = [...HISTORY.map((h) => h.month + " 2569"), CURRENT_LABEL];
   const [selectedMonth, setSelectedMonth] = useState(CURRENT_LABEL);
   const [showAccounting, setShowAccounting] = useState(false);
   const isCurrent = selectedMonth === CURRENT_LABEL;
   const pnl = computePnL(cars, overhead, bookings, otherExpenses, APP_TODAY.slice(0, 7), categories, claims);
-  const chartData = [...HISTORY, { month: "ส.ค.*", revenue: pnl.revenue, netProfit: pnl.netProfit }];
+  const chartData = [...HISTORY, { month: `${CURRENT_MONTH_LABEL.split(" ")[0]}*`, revenue: pnl.revenue, netProfit: pnl.netProfit }];
   const historicalMonth = HISTORY.find((h) => h.month + " 2569" === selectedMonth);
   const setOh = (k, v) => setOverhead((p) => ({ ...p, [k]: v }));
   const ohFields = [{ k: "rent", label: "ค่าเช่าที่จอด/ออฟฟิศ" }, { k: "marketing", label: "การตลาด/โฆษณา" }, { k: "platformFee", label: "ค่าคอมมิชชั่นแพลตฟอร์ม" }, { k: "other", label: "อื่นๆ" }];
@@ -2604,7 +2615,7 @@ function MonthlyPanel({ cars, overhead, setOverhead, bookings, otherExpenses, cl
 
       {isCurrent && (
       <>
-      <div className="text-[13px] font-semibold mb-2" style={{ color: INK }}>งบกำไรขาดทุน · ส.ค. 2569</div>
+      <div className="text-[13px] font-semibold mb-2" style={{ color: INK }}>งบกำไรขาดทุน · {CURRENT_MONTH_LABEL}</div>
       <div className="rounded-lg p-3 mb-2" style={{ background: PAPER, border: `1px solid ${PAPER_LINE}` }}>
         <PnlLine label="รายได้ค่าเช่ารถของเพจเอง" value={pnl.pageOwnRevenue} />
         <PnlLine label="รายได้ค่าคอมมิชชั่นจากรถพาร์ทเนอร์" value={pnl.commissionRevenue} />
@@ -2982,9 +2993,9 @@ function ClaimsView({ claims, setClaims, cars, categories, session, wide }) {
     const amt = Number(form.amount);
     if (!form.description.trim() || !amt || amt <= 0 || !form.receiptUrl) return;
     setClaims((prev) => [...prev, {
-      id: `cl${claimCounter++}`, requesterName: session.name, requestDate: APP_TODAY, requestedAt: new Date().toISOString(), reviewedAtTime: "",
+      id: newId(), requesterName: session.name, requestDate: APP_TODAY, requestedAt: new Date().toISOString(), reviewedAtTime: "",
       paymentDate: form.paymentDate, amount: amt, category: form.category,
-      carId: form.carId ? Number(form.carId) : null, description: form.description.trim(),
+      carId: carIdFromValue(form.carId), description: form.description.trim(),
       receiptUrl: form.receiptUrl, extraDocUrl: form.extraDocUrl,
       status: "pending", reviewedBy: "", reviewedAt: "", rejectReason: "", paidAt: "",
     }]);
@@ -3249,7 +3260,7 @@ function ClaimDetail({ claim, cars, categories, isOwner, session, onClose, onDec
                     </select>
                   </label>
                   <label><div className="text-[10.5px] mb-1" style={{ color: MUTE }}>เกี่ยวกับรถคันไหน</div>
-                    <select className={eIn} style={eStyle} value={draft.carId || ""} onChange={(e) => setDraft((p) => ({ ...p, carId: e.target.value ? Number(e.target.value) : null }))}>
+                    <select className={eIn} style={eStyle} value={draft.carId || ""} onChange={(e) => setDraft((p) => ({ ...p, carId: carIdFromValue(e.target.value) }))}>
                       <option value="">ไม่ระบุ</option>
                       {cars.map((x) => <option key={x.id} value={x.id}>{x.plate} · {x.brand} {x.model}</option>)}
                     </select>
@@ -3342,7 +3353,7 @@ function ExpensePanel({ otherExpenses, setOtherExpenses, yearMonth, categories, 
   const add = () => {
     const amt = Number(form.amount);
     if (!form.description.trim() || !amt || amt <= 0) return;
-    const entry = { id: `ox${expenseCounter++}`, date: form.date, category: form.category, description: form.description.trim(), amount: amt, receiptUrl: form.receiptUrl, carId: form.carId ? Number(form.carId) : null };
+    const entry = { id: newId(), date: form.date, category: form.category, description: form.description.trim(), amount: amt, receiptUrl: form.receiptUrl, carId: form.carId ? Number(form.carId) : null };
     setOtherExpenses((prev) => [...prev, entry]);
     const wasBuyCar = form.category === "buy_car";
     setForm({ date: APP_TODAY, category: form.category, description: "", amount: "", receiptUrl: "", carId: "" });
@@ -3612,7 +3623,7 @@ function AccountsManager({ accounts, setAccounts, currentId, onClose }) {
   useLockBodyScroll();
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [role, setRole] = useState("staff");
   const inputCls = "w-full text-[12.5px] rounded-md px-2 py-1.5 outline-none"; const inputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
-  const add = () => { if (!name.trim() || !email.trim()) return; setAccounts((prev) => [...prev, { id: `u${accountCounter++}`, name, email, role }]); setName(""); setEmail(""); };
+  const add = () => { if (!name.trim() || !email.trim()) return; setAccounts((prev) => [...prev, { id: newId(), name, email, role }]); setName(""); setEmail(""); };
   const remove = (id) => { if (id === currentId) return; setAccounts((prev) => prev.filter((a) => a.id !== id)); };
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -3857,6 +3868,8 @@ function CustomerAvailabilityView({ cars, scheduleEvents, onExit, onSubmitBookin
   useLockBodyScroll(!!bookingCar);
   const [reqForm, setReqForm] = useState({ firstName: "", lastName: "", phone: "", email: "", startDate: APP_TODAY, startTime: "09:00", endDate: APP_TODAY, endTime: "18:00", pickupLocation: "", returnLocation: "", travelTicketUrl: "", noTicket: false, termsAccepted: false, reservationSlipUrl: "" });
   const [submitted, setSubmitted] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
   const DISPLAY_START = 7, DISPLAY_END = 22;
 
   // PRIVACY: the public page must never expose who booked a car. Strip every event down
@@ -3908,11 +3921,11 @@ function CustomerAvailabilityView({ cars, scheduleEvents, onExit, onSubmitBookin
   const missingRequired = !reqForm.firstName.trim() || !reqForm.phone.trim() || !reqForm.pickupLocation.trim() || !reqForm.returnLocation.trim() || (!reqForm.noTicket && !reqForm.travelTicketUrl.trim()) || !reqForm.termsAccepted || !reqForm.reservationSlipUrl;
   const canSubmit = bookingCar && !rangeInvalid && !conflict && !reqForm.noTicket && !missingRequired;
 
-  const submitRequest = () => {
+  const submitRequest = async () => {
     // re-check conflict right before writing — guards against another booking landing in the moment between opening this modal and pressing submit
-    if (!canSubmit || hasConflict(bookingCar.id, reqForm.startDate, reqForm.startTime, reqForm.endDate, reqForm.endTime)) return;
+    if (!canSubmit || sending || hasConflict(bookingCar.id, reqForm.startDate, reqForm.startTime, reqForm.endDate, reqForm.endTime)) return;
     const booking = {
-      id: `bk${bookingCounter++}`, status: "pending", bookingSource: "customer",
+      id: newId(), status: "pending", bookingSource: "customer",
       firstName: reqForm.firstName, lastName: reqForm.lastName, phone: reqForm.phone, email: reqForm.email || "",
       carId: bookingCar.id, startDate: reqForm.startDate, startTime: reqForm.startTime, endDate: reqForm.endDate, endTime: reqForm.endTime,
       pickupLocation: reqForm.pickupLocation, returnLocation: reqForm.returnLocation,
@@ -3922,8 +3935,16 @@ function CustomerAvailabilityView({ cars, scheduleEvents, onExit, onSubmitBookin
       contractSigned: false, idCardOrLicense: "", notes: "จองผ่านหน้าลูกค้า (self-service) — รอเจ้าหน้าที่ตรวจสอบและยืนยัน",
       cancelReason: "", depositRefunded: false, createdBy: "ลูกค้า (จองเอง)",
     };
-    onSubmitBooking(booking);
-    setSubmitted({ car: bookingCar, ...reqForm, total: liveTotal });
+    setSending(true); setSendError("");
+    try {
+      // ระบบจริง: ฐานข้อมูลตรวจซ้ำอีกชั้น ถ้ามีคนจองตัดหน้าไปก่อนจะได้ข้อความแจ้งกลับมา
+      await onSubmitBooking(booking, reqForm, bookingCar);
+      setSubmitted({ car: bookingCar, ...reqForm, total: liveTotal });
+    } catch (e) {
+      setSendError(e.message || "ส่งคำขอไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setSending(false);
+    }
   };
 
   if (submitted) {
@@ -4103,7 +4124,8 @@ function CustomerAvailabilityView({ cars, scheduleEvents, onExit, onSubmitBookin
 
             </div>
             <div className="p-4 pt-3 flex-shrink-0 border-t" style={{ borderColor: PAPER_LINE }}>
-              <div className="flex gap-2"><button onClick={() => setBookingCar(null)} className="flex-1 py-2.5 rounded-lg text-[12.5px]" style={{ border: `1px solid ${PAPER_LINE}`, color: INK }}>ยกเลิก</button><button onClick={submitRequest} disabled={!canSubmit} className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: !canSubmit ? PAPER_LINE : INK, color: !canSubmit ? MUTE : PAPER }}>ส่งคำขอจอง</button></div>
+              {sendError && <div className="rounded-md p-2.5 mb-2 text-[12px]" style={{ background: "#C1502E14", color: "#C1502E" }}>{sendError}</div>}
+              <div className="flex gap-2"><button onClick={() => setBookingCar(null)} className="flex-1 py-2.5 rounded-lg text-[12.5px]" style={{ border: `1px solid ${PAPER_LINE}`, color: INK }}>ยกเลิก</button><button onClick={submitRequest} disabled={!canSubmit || sending} className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: !canSubmit || sending ? PAPER_LINE : INK, color: !canSubmit || sending ? MUTE : PAPER }}>{sending ? "กำลังส่ง…" : "ส่งคำขอจอง"}</button></div>
             </div>
           </div>
         </div>
@@ -4152,20 +4174,136 @@ function LoginScreen({ accounts, onLogin, onPublicView, onBackHome }) {
   );
 }
 
+/* ================= ระบบจริง: เข้าสู่ระบบ / โหลด / จัดการผู้ใช้ ================= */
+const SCREEN_BG = { background: BOARD, backgroundImage: "radial-gradient(#3A3E45 1px, transparent 1px)", backgroundSize: "16px 16px" };
+const dbInputCls = "w-full text-[13px] rounded-md px-2.5 py-2 outline-none";
+const dbInputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
+
+function DbLoginScreen({ onLogin, onPublicView, onBackHome }) {
+  const [email, setEmail] = useState(""); const [pw, setPw] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(true); const [inactive, setInactive] = useState("");
+  const handle = (p) => {
+    if (!p) return;
+    if (!p.active) { setInactive(p.email); return; }
+    onLogin(sessionFromProfile(p.profile, p.email));
+  };
+  // เคยล็อกอินไว้ในเครื่องนี้แล้ว → เข้าเลย
+  useEffect(() => { currentProfile().then(handle).catch(() => {}).finally(() => setBusy(false)); }, []);
+  const submit = async () => {
+    if (!email.trim() || !pw) { setErr("กรุณากรอกอีเมลและรหัสผ่าน"); return; }
+    setBusy(true); setErr("");
+    try { handle(await signIn(email, pw)); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="min-h-screen w-full overflow-x-hidden flex items-center justify-center p-4" style={SCREEN_BG}>
+      <style>{FONTS}</style>
+      <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: PAPER }}>
+        <div className="text-center mb-4"><div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em", color: INK }} className="text-2xl font-bold uppercase">{COMPANY.systemName}</div><div className="text-[12px]" style={{ color: MUTE }}>สำหรับเจ้าหน้าที่ {COMPANY.name}</div></div>
+        {inactive ? (
+          <div>
+            <div className="rounded-md p-3 mb-3 text-[12px]" style={{ background: "#D69A2D14", color: "#9A6A12" }}>บัญชี <b>{inactive}</b> ยังไม่ได้เปิดใช้งาน<br />ให้เจ้าของร้านเข้าเมนู “จัดการผู้ใช้” แล้วกดเปิดสิทธิ์ให้ก่อน</div>
+            <button onClick={async () => { await signOut(); setInactive(""); }} className="w-full py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: INK, color: PAPER }}>ออกจากระบบ</button>
+          </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
+            <input type="email" autoComplete="username" className={`${dbInputCls} mb-2`} style={dbInputStyle} placeholder="อีเมล" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} />
+            <input type="password" autoComplete="current-password" className={`${dbInputCls} mb-1`} style={dbInputStyle} placeholder="รหัสผ่าน" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} />
+            {err && <div className="text-[11px] mb-2" style={{ color: "#C1502E" }}>{err}</div>}
+            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-lg text-[13px] font-semibold mt-2" style={{ background: INK, color: PAPER, opacity: busy ? 0.6 : 1 }}>{busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}</button>
+          </form>
+        )}
+        <button onClick={onPublicView} className="w-full py-2.5 rounded-lg text-[12.5px] font-medium mt-3 flex items-center justify-center gap-1.5" style={{ border: `1px solid #3B5BA5`, color: "#3B5BA5" }}><Eye size={14} />เปิดหน้าลูกค้า</button>
+        {onBackHome && <button onClick={onBackHome} className="w-full py-2 text-[11.5px] mt-2 flex items-center justify-center gap-1" style={{ color: MUTE }}><ChevronLeft size={13} />กลับหน้าแรกของเว็บ</button>}
+      </div>
+    </div>
+  );
+}
+
+function DbLoadingScreen({ error, onRetry, onLogout }) {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center p-4" style={SCREEN_BG}>
+      <style>{FONTS}</style>
+      <div className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: PAPER }}>
+        {error ? (<>
+          <div className="text-[14px] font-semibold mb-1" style={{ color: "#C1502E" }}>โหลดข้อมูลไม่สำเร็จ</div>
+          <div className="text-[12px] mb-4" style={{ color: MUTE }}>{error}</div>
+          <button onClick={onRetry} className="w-full py-2.5 rounded-lg text-[13px] font-semibold mb-2" style={{ background: INK, color: PAPER }}>ลองใหม่</button>
+          <button onClick={onLogout} className="w-full py-2 text-[12px]" style={{ color: MUTE }}>ออกจากระบบ</button>
+        </>) : <div className="text-[13px] py-6" style={{ color: MUTE }}>กำลังโหลดข้อมูล…</div>}
+      </div>
+    </div>
+  );
+}
+
+function DbAccountsManager({ currentId, onClose }) {
+  useLockBodyScroll();
+  const [list, setList] = useState(null); const [err, setErr] = useState("");
+  const load = () => listProfiles().then(setList).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, []);
+  const save = async (id, patch) => { setErr(""); try { await updateProfile(id, patch); await load(); } catch (e) { setErr(e.message); } };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0" style={{ background: "#00000066" }} onClick={onClose} />
+      <div className="relative w-full sm:max-w-md lg:max-w-2xl rounded-t-2xl sm:rounded-2xl flex flex-col" style={{ background: PAPER, maxHeight: "85vh", minHeight: 0 }}>
+        <div className="p-4 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: PAPER_LINE }}><div className="font-semibold text-[15px] flex items-center gap-1.5" style={{ color: INK }}><Users size={16} />จัดการผู้ใช้</div><button onClick={onClose} className="p-1"><X size={18} color={MUTE} /></button></div>
+        <div className="p-4 flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" }}>
+          {err && <div className="rounded-md p-2 mb-3 text-[11.5px]" style={{ background: "#C1502E14", color: "#C1502E" }}>{err}</div>}
+          {!list ? <div className="text-[12px]" style={{ color: MUTE }}>กำลังโหลด…</div> : (
+            <div className="space-y-2 mb-4">{list.map((a) => {
+              const self = a.id === currentId;
+              return (
+                <div key={a.id} className="rounded-lg p-2.5" style={{ background: "#FFFFFF80", border: `1px solid ${PAPER_LINE}`, opacity: a.is_active ? 1 : 0.75 }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0" style={{ background: a.is_active ? ROLE_COLOR[a.role] : MUTE, color: PAPER }}>{(a.full_name || a.email || "?")[0]}</div>
+                    <div className="flex-1 min-w-0"><div className="text-[12.5px] font-medium truncate" style={{ color: INK }}>{a.full_name}{self ? " (คุณ)" : ""}</div><div className="text-[10.5px] truncate" style={{ color: MUTE }}>{a.email || "-"}</div></div>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ color: a.is_active ? "#3A7D5C" : "#C1502E", background: a.is_active ? "#3A7D5C1a" : "#C1502E1a" }}>{a.is_active ? "ใช้งานอยู่" : "ปิดอยู่"}</span>
+                  </div>
+                  {!self && (
+                    <div className="flex items-center gap-2">
+                      <select className="flex-1 text-[12px] rounded-md px-2 py-1.5" style={dbInputStyle} value={a.role} onChange={(e) => save(a.id, { role: e.target.value })}>
+                        {Object.entries(ROLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <button onClick={() => save(a.id, { is_active: !a.is_active })} className="text-[12px] font-semibold px-3 py-1.5 rounded-md flex-shrink-0" style={a.is_active ? { border: "1px solid #C1502E", color: "#C1502E" } : { background: "#3A7D5C", color: "#FFFFFF" }}>{a.is_active ? "ปิดบัญชี" : "เปิดใช้งาน"}</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}</div>
+          )}
+          <div className="rounded-lg p-3 text-[11.5px] space-y-1" style={{ background: "#3B5BA514", color: "#3B5BA5" }}>
+            <div className="font-semibold">เพิ่มพนักงานใหม่</div>
+            <div>1. เข้า supabase.com → โปรเจกต์ → Authentication → Users → Add user → Create new user</div>
+            <div>2. ใส่อีเมลพนักงาน ตั้งรหัสผ่าน ติ๊ก Auto Confirm User แล้วกดสร้าง</div>
+            <div>3. กลับมาหน้านี้ ชื่อพนักงานจะขึ้นเป็น “ปิดอยู่” → เลือกบทบาท แล้วกด “เปิดใช้งาน”</div>
+            <div className="pt-1" style={{ color: MUTE }}>พนักงานลาออก: กด “ปิดบัญชี” — เข้าระบบไม่ได้ทันที แต่ประวัติงานยังอยู่ครบ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ================= app ================= */
 export default function App() {
   // Restore previously saved data if present; otherwise start from seed data.
-  const saved = useState(() => loadSaved())[0];
+  // เดโม: ข้อมูลตัวอย่าง + localStorage · ระบบจริง: เริ่มว่างแล้วโหลดจากฐานข้อมูล
+  const saved = useState(() => (DEMO_MODE ? loadSaved() : null))[0];
+  const demo = (v, empty) => (DEMO_MODE ? v : empty);
   const [accounts, setAccounts] = useState(() => (saved && saved.accounts) || MOCK_ACCOUNTS);
   const [session, setSession] = useState(null);
+  const [publicData, setPublicData] = useState(null);   // หน้าลูกค้า (ระบบจริง)
+  const [dbLoaded, setDbLoaded] = useState(false);      // โหลดข้อมูลพนักงานเสร็จแล้ว
+  const [dbError, setDbError] = useState("");
+  const [syncing, setSyncing] = useState(0);
   const [publicMode, setPublicMode] = useState(false);
   // Entry routing. In production these map to real URLs:
   //   "home"  -> yourdomain.com          (public company site)
   //   "staff" -> yourdomain.com/admin    (staff login)
   const [entry, setEntry] = useState("home");
-  const [cars, setCars] = useState(() => (saved && saved.cars) || INITIAL_CARS);
-  const [overhead, setOverhead] = useState(() => (saved && saved.overhead) || DEFAULT_OVERHEAD);
+  const [cars, setCars] = useState(() => (saved && saved.cars) || demo(INITIAL_CARS, []));
+  const [overhead, setOverhead] = useState(() => (saved && saved.overhead) || demo(DEFAULT_OVERHEAD, EMPTY_OVERHEAD));
   const [scheduleEvents, setScheduleEvents] = useState(() => {
+    if (!DEMO_MODE) return [];
     const base = (saved && saved.scheduleEvents) || [
       ...INITIAL_SCHEDULE_EVENTS,
       ...INITIAL_BOOKINGS.filter((b) => b.status !== "cancelled").flatMap(expandBookingToEvents),
@@ -4173,11 +4311,11 @@ export default function App() {
     const bk = (saved && saved.bookings) || INITIAL_BOOKINGS;
     return ensureCleanBuffers(base, bk);
   });
-  const [bookings, setBookings] = useState(() => (saved && saved.bookings) || INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState(() => (saved && saved.bookings) || demo(INITIAL_BOOKINGS, []));
   const [termsText, setTermsText] = useState(() => (saved && saved.termsText) || DEFAULT_CONTRACT_TERMS_TEXT);
   const [bankInfo, setBankInfo] = useState(() => (saved && saved.bankInfo) || DEFAULT_COMPANY_BANK_INFO);
-  const [otherExpenses, setOtherExpenses] = useState(() => (saved && saved.otherExpenses) || INITIAL_OTHER_EXPENSES);
-  const [claims, setClaims] = useState(() => (saved && saved.claims) || INITIAL_CLAIMS);
+  const [otherExpenses, setOtherExpenses] = useState(() => (saved && saved.otherExpenses) || demo(INITIAL_OTHER_EXPENSES, []));
+  const [claims, setClaims] = useState(() => (saved && saved.claims) || demo(INITIAL_CLAIMS, []));
   const [categories, setCategories] = useState(() => (saved && saved.categories) || DEFAULT_EXPENSE_CATEGORIES);
   const [saveIssue, setSaveIssue] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -4208,22 +4346,99 @@ export default function App() {
     </button>
   );
 
-  const submitCustomerBooking = (booking) => {
+  /* ----- ระบบจริง: โหลดจากฐานข้อมูล แล้วส่งขึ้นเฉพาะแถวที่เปลี่ยน ----- */
+  // synced = สิ่งที่ฐานข้อมูลมีอยู่แล้ว (ชื่อชุด -> Map(id -> JSON)) · เทียบกับ state ปัจจุบันเพื่อหาแถวที่ต้องส่ง
+  const synced = useRef({});
+  const queue = useRef(Promise.resolve());   // ส่งทีละงานตามลำดับ (รถใหม่ต้องถึงก่อนงานเช่าของรถคันนั้น)
+  const byId = (x) => x.id, byKey = (c) => c.key;
+  const remember = (name, arr, keyOf = byId) => { synced.current[name] = new Map(arr.map((x) => [String(keyOf(x)), JSON.stringify(x)])); };
+  const diff = (name, arr, keyOf = byId) => {
+    const prev = synced.current[name] || new Map();
+    const next = new Map(arr.map((x) => [String(keyOf(x)), JSON.stringify(x)]));
+    synced.current[name] = next;
+    return { changed: arr.filter((x) => prev.get(String(keyOf(x))) !== next.get(String(keyOf(x)))), removed: [...prev.keys()].filter((k) => !next.has(k)) };
+  };
+  const applyStaffData = (d) => {
+    const cats = d.categories.length ? d.categories : DEFAULT_EXPENSE_CATEGORIES;
+    const oh = d.overhead || EMPTY_OVERHEAD;
+    remember("cars", d.cars); remember("bookings", d.bookings); remember("events", d.manualEvents);
+    remember("claims", d.claims); remember("otherExpenses", d.otherExpenses);
+    remember("categories", d.categories, byKey);   // ยังไม่เคยบันทึก → เจ้าของจะส่งหมวดมาตรฐานขึ้นไปให้อัตโนมัติ
+    remember("overhead", d.overhead ? [{ ...oh, id: "main" }] : []);
+    synced.current.termsText = d.termsText;
+    synced.current.bankInfo = JSON.stringify(d.bankInfo);
+    setCars(d.cars); setBookings(d.bookings);
+    setScheduleEvents(ensureCleanBuffers([...d.manualEvents, ...d.bookings.filter((b) => b.status !== "cancelled").flatMap(expandBookingToEvents)], d.bookings));
+    setClaims(d.claims); setOtherExpenses(d.otherExpenses); setCategories(cats); setOverhead({ ...oh, id: "main" });
+    if (d.termsText !== null) setTermsText(d.termsText);
+    if (d.bankInfo !== null) setBankInfo(d.bankInfo);
+  };
+  const reloadNow = async () => {
+    try { applyStaffData(await loadStaffData()); setDbLoaded(true); } catch (e) { setDbError(e.message || String(e)); }
+  };
+  const enqueue = (fn) => {
+    setSyncing((n) => n + 1);
+    // ส่งไม่ผ่าน (เช่น จองทับช่วงเวลา) → แจ้งเตือน แล้วโหลดข้อมูลจริงกลับมาทับ ไม่ให้หน้าจอค้างค่าที่บันทึกไม่ได้
+    queue.current = queue.current.then(fn).catch((e) => { setDbError(e.message || String(e)); return reloadNow(); }).finally(() => setSyncing((n) => n - 1));
+  };
+  const refreshPublic = async () => { try { setPublicData(await loadPublicData()); } catch (e) { setDbError(e.message || String(e)); } };
+
+  useEffect(() => { if (DB_MODE) refreshPublic(); }, []);
+  const sessionId = session ? session.id : null;
+  useEffect(() => {
+    if (!DB_MODE || !sessionId) return undefined;
+    setDbLoaded(false); setDbError("");
+    enqueue(reloadNow);
+    // ดึงงานใหม่ (เช่น ลูกค้าเพิ่งจอง) ทุก 1 นาที และทุกครั้งที่กลับมาที่หน้าต่างนี้
+    const t = setInterval(() => enqueue(reloadNow), 60000);
+    const onFocus = () => enqueue(reloadNow);
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };
+  }, [sessionId]);
+
+  const live = DB_MODE && dbLoaded && !!session;
+  const role = session ? session.role : null;
+  const canMoney = role === "owner" || role === "accountant";
+  useEffect(() => { if (!live) return; const d = diff("cars", cars); if (d.changed.length || d.removed.length) enqueue(() => pushCars(d.changed, d.removed)); }, [cars, live]);
+  useEffect(() => { if (!live) return; const d = diff("bookings", bookings); if (d.changed.length || d.removed.length) enqueue(() => pushBookings(d.changed, d.removed)); }, [bookings, live]);
+  useEffect(() => { if (!live) return; const d = diff("events", scheduleEvents.filter((e) => !e.bookingId)); if (d.changed.length || d.removed.length) enqueue(() => pushEvents(d.changed, d.removed)); }, [scheduleEvents, live]);
+  useEffect(() => { if (!live) return; const d = diff("claims", claims); if (d.changed.length || d.removed.length) enqueue(() => pushRecords("claims", d.changed, d.removed, byId)); }, [claims, live]);
+  useEffect(() => { if (!live || !canMoney) return; const d = diff("otherExpenses", otherExpenses); if (d.changed.length || d.removed.length) enqueue(() => pushRecords("otherExpenses", d.changed, d.removed, byId)); }, [otherExpenses, live]);
+  useEffect(() => { if (!live || !canMoney) return; const d = diff("overhead", [{ ...overhead, id: "main" }]); if (d.changed.length) enqueue(() => pushRecords("overhead", d.changed, [], byId)); }, [overhead, live]);
+  useEffect(() => { if (!live || role !== "owner") return; const d = diff("categories", categories, byKey); if (d.changed.length || d.removed.length) enqueue(() => pushRecords("categories", d.changed, d.removed, byKey)); }, [categories, live]);
+  useEffect(() => {
+    if (!live || role !== "owner") return;
+    if (termsText !== synced.current.termsText) { synced.current.termsText = termsText; enqueue(() => pushSetting("contract_terms", termsText)); }
+    const bi = JSON.stringify(bankInfo);
+    if (bi !== synced.current.bankInfo) { synced.current.bankInfo = bi; enqueue(() => pushSetting("bank_accounts", bankInfo)); }
+  }, [termsText, bankInfo, live]);
+
+  const submitCustomerBooking = async (booking, req, car) => {
+    if (DB_MODE) {
+      await submitBookingRequest(req, car);
+      refreshPublic();
+      if (session) enqueue(reloadNow);
+      return;
+    }
     setBookings((prev) => [...prev, booking]);
     setScheduleEvents((prev) => [...prev, ...expandBookingToEvents(booking)]);
   };
 
-  // Persist working data on every change. Runs on all screens (including the customer
-  // booking flow) so a customer request submitted from the public page is not lost.
+  // เดโม: เก็บทุกอย่างในเบราว์เซอร์เครื่องนี้
   useEffect(() => {
+    if (!DEMO_MODE) return;
     const r = saveState({ accounts, cars, overhead, scheduleEvents, bookings, termsText, bankInfo, otherExpenses, claims, categories });
     setSaveIssue(r.ok ? null : r.reason);
     setStorageKB(estimateStorageKB());
   }, [accounts, cars, overhead, scheduleEvents, bookings, termsText, bankInfo, otherExpenses, claims, categories]);
 
-  if (publicMode) return <CustomerAvailabilityView cars={cars} scheduleEvents={scheduleEvents} onExit={() => { setPublicMode(false); setEntry("home"); }} onSubmitBooking={submitCustomerBooking} termsText={termsText} bankInfo={bankInfo} />;
-  if (!session && entry === "home") return <HomePage cars={cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} />;
-  if (!session) return <LoginScreen accounts={accounts} onLogin={(acc) => { setSession(acc); setTab(ROLE_TABS[acc.role][0]); }} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
+  const pub = DB_MODE ? publicData : null;
+  const enterStaff = (acc) => { setSession(acc); setTab(ROLE_TABS[acc.role][0]); };
+  if (publicMode) return <CustomerAvailabilityView cars={pub ? pub.cars : cars} scheduleEvents={pub ? pub.events : scheduleEvents} onExit={() => { setPublicMode(false); setEntry("home"); }} onSubmitBooking={submitCustomerBooking} termsText={pub && pub.termsText ? pub.termsText : termsText} bankInfo={pub && pub.bankInfo.length ? pub.bankInfo : bankInfo} />;
+  if (!session && entry === "home") return <HomePage cars={pub ? pub.cars : cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} />;
+  if (!session && DB_MODE) return <DbLoginScreen onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
+  if (!session) return <LoginScreen accounts={accounts} onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
+  if (DB_MODE && !dbLoaded) return <DbLoadingScreen error={dbError} onRetry={() => { setDbError(""); enqueue(reloadNow); }} onLogout={async () => { await signOut(); setSession(null); setEntry("home"); }} />;
 
   const allowedTabs = ROLE_TABS[session.role];
   const editFleet = canEditFleetTab(session.role);
@@ -4247,7 +4462,14 @@ export default function App() {
     setSaveIssue(null);
   };
 
-  const logout = () => { setSession(null); setEntry("home"); setTab("fleet"); setSelected(null); setFormCar(undefined); setExportOpen(false); setAccountsOpen(false); setSettingsOpen(false); };
+  const logout = () => {
+    if (DB_MODE) {
+      signOut();
+      synced.current = {}; setDbLoaded(false); setDbError("");
+      setCars([]); setBookings([]); setScheduleEvents([]); setClaims([]); setOtherExpenses([]); setOverhead(EMPTY_OVERHEAD);
+      refreshPublic();
+    }
+    setSession(null); setEntry("home"); setTab("fleet"); setSelected(null); setFormCar(undefined); setExportOpen(false); setAccountsOpen(false); setSettingsOpen(false); };
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden" style={{ background: BOARD, backgroundImage: "radial-gradient(#3A3E45 1px, transparent 1px)", backgroundSize: "16px 16px" }}>
@@ -4283,6 +4505,7 @@ export default function App() {
             <button onClick={() => setExportOpen(true)} className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-[12px]" style={{ color: "#9BA0A8" }}><Download size={14} />ส่งออกข้อมูล</button>
             <button onClick={logout} className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-[12px]" style={{ color: "#9BA0A8" }}><LogOut size={14} />ออกจากระบบ</button>
             <div className="pt-1 border-t" style={{ borderColor: "#00000040" }}><LayoutToggle dark /></div>
+            {DB_MODE ? <div className="px-2 pt-1 text-[10px]" style={{ color: "#6B7078" }}>{syncing ? "กำลังบันทึกขึ้นระบบ…" : "บันทึกขึ้นระบบแล้ว ✓"}</div> : (<>
             <div className="px-2 pt-1 text-[10px]" style={{ color: saveIssue ? "#E38468" : "#6B7078" }}>
               {saveIssue === "quota" ? "⚠️ พื้นที่เก็บเต็ม — ข้อมูลใหม่ไม่ถูกบันทึก" : saveIssue ? "⚠️ บันทึกไม่สำเร็จ" : `บันทึกอัตโนมัติแล้ว · ใช้ ${storageKB} KB`}
             </div>
@@ -4290,6 +4513,7 @@ export default function App() {
               className="w-full flex items-center gap-2 px-2 py-2 rounded-md text-[11.5px]" style={{ color: confirmReset ? "#E38468" : "#6B7078" }}>
               <Trash2 size={12} />{confirmReset ? "กดอีกครั้งเพื่อยืนยันล้างข้อมูล" : "ล้างข้อมูลทั้งหมด (กลับค่าเริ่มต้น)"}
             </button>
+            </>)}
           </div>
         </aside>
         <main className="flex-1 min-w-0 flex flex-col">
@@ -4325,6 +4549,7 @@ export default function App() {
         </div>
         <div className="px-4 pb-1 flex items-center gap-2 flex-wrap">
           <LayoutToggle />
+          {DB_MODE ? <span className="text-[10px]" style={{ color: MUTE }}>{syncing ? "กำลังบันทึก…" : "บันทึกขึ้นระบบแล้ว ✓"}</span> : (<>
           <span className="text-[10px]" style={{ color: saveIssue ? "#E38468" : MUTE }}>
             {saveIssue === "quota" ? "⚠️ พื้นที่เต็ม" : saveIssue ? "⚠️ บันทึกไม่สำเร็จ" : `บันทึกแล้ว · ${storageKB} KB`}
           </span>
@@ -4332,6 +4557,7 @@ export default function App() {
             className="text-[10px] flex items-center gap-1" style={{ color: confirmReset ? "#E38468" : MUTE }}>
             <Trash2 size={11} />{confirmReset ? "ยืนยันล้าง?" : "ล้างข้อมูล"}
           </button>
+          </>)}
         </div>
         <div className="px-4 pb-3 flex items-center gap-1.5">
           <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: ROLE_COLOR[session.role], color: PAPER }}>{session.name[0]}</div>
@@ -4360,7 +4586,15 @@ export default function App() {
       <Drawer car={selected} events={scheduleEvents} onClose={() => setSelected(null)} onEdit={(c) => setFormCar(c)} canEdit={editFleet} canSeeFinance={seeFinance} />
       {formCar !== undefined && <CarForm car={formCar} onSave={saveCar} onClose={() => setFormCar(undefined)} onDelete={deleteCar} showFinance={session.role === "owner"} />}
       {exportOpen && <ExportModal role={session.role} cars={cars} overhead={overhead} bookings={bookings} scheduleEvents={scheduleEvents} otherExpenses={otherExpenses} claims={claims} categories={categories} onClose={() => setExportOpen(false)} />}
-      {accountsOpen && <AccountsManager accounts={accounts} setAccounts={setAccounts} currentId={session.id} onClose={() => setAccountsOpen(false)} />}
+      {accountsOpen && (DB_MODE
+        ? <DbAccountsManager currentId={session.id} onClose={() => setAccountsOpen(false)} />
+        : <AccountsManager accounts={accounts} setAccounts={setAccounts} currentId={session.id} onClose={() => setAccountsOpen(false)} />)}
+      {DB_MODE && dbError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] w-[92%] max-w-md rounded-lg p-3 text-[12px] flex items-start gap-2 shadow-lg" style={{ background: "#C1502E", color: "#FFFFFF" }}>
+          <div className="flex-1"><b>บันทึกไม่สำเร็จ</b> — {dbError}<div className="opacity-80 mt-0.5">ระบบโหลดข้อมูลล่าสุดกลับมาให้แล้ว กรุณาตรวจสอบแล้วลองใหม่</div></div>
+          <button onClick={() => setDbError("")} className="p-0.5 flex-shrink-0"><X size={14} /></button>
+        </div>
+      )}
       {settingsOpen && <SettingsModal termsText={termsText} setTermsText={setTermsText} bankInfo={bankInfo} setBankInfo={setBankInfo} onClose={() => setSettingsOpen(false)} />}
     </div>
   );

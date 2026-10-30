@@ -1,5 +1,5 @@
 const { JSDOM } = require("jsdom");
-const dom = new JSDOM('<!DOCTYPE html><html><body><div id="root"></div></body></html>', { runScripts:"outside-only", pretendToBeVisual:true, url:"https://example.com/" });
+const dom = new JSDOM('<!DOCTYPE html><html><body><div id="root"></div></body></html>', { runScripts:"outside-only", pretendToBeVisual:true, url:"https://example.com/?demo=1" });
 const { window } = dom;
 global.window = window; global.document = window.document;
 Object.defineProperty(global, "navigator", { value: window.navigator, configurable: true });
