@@ -11,3 +11,9 @@
   from = "/"
   to = "/fleet-desk-web.html"
   status = 200
+
+# /admin = หน้าล็อกอินพนักงาน (ไฟล์เดียวกัน แอปดูจากที่อยู่ลิงก์เอง)
+[[redirects]]
+  from = "/admin"
+  to = "/fleet-desk-web.html"
+  status = 200

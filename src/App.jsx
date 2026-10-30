@@ -5,7 +5,7 @@ import {
   Car, Truck, Zap, Leaf, Sparkles, Wrench, Wallet, CalendarDays, X, Plus, Pencil,
   Fuel, TrendingUp, TrendingDown, Gauge, ShieldCheck, Clock, ChevronRight, ChevronLeft, Trash2,
   PiggyBank, Image as ImageIcon, LogOut, Download, Lock, ClipboardList, Users, Eye,
-  Phone, Mail, MapPin, MessageSquare, Copy, Check, Handshake, Settings, Archive, FileText, Filter, Camera,
+  Phone, Mail, MapPin, MessageSquare, Copy, Check, Handshake, Settings, Archive, FileText, Filter, Camera, EyeOff,
 } from "lucide-react";
 // ชื่อบริษัท เบอร์โทร URL ฯลฯ อยู่ที่ไฟล์นี้ไฟล์เดียว — เปลี่ยนแบรนด์แก้ที่ brand.json
 import COMPANY from "./brand.json";
@@ -13,6 +13,7 @@ import PAYMENT_QR from "./assets/payment-qr.webp";
 import {
   DB_MODE, DEMO_MODE, newId, todayBkk, loadPublicData, loadStaffData, pushCars, pushBookings, pushEvents, pushRecords,
   pushSetting, submitBookingRequest, currentProfile, signIn, signOut, sessionFromProfile, listProfiles, updateProfile,
+  OPENED_FROM_RESET_LINK, requestPasswordReset, onPasswordRecovery, setNewPassword,
 } from "./db.js";
 
 // ค่าจาก <select> เป็นข้อความเสมอ: เดโมใช้รหัสรถเป็นตัวเลข ระบบจริงใช้ UUID
@@ -380,12 +381,19 @@ const R = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // Locks background page scroll while a fixed-position modal is open. Without this, on many mobile
 // browsers a touch-scroll gesture inside a long modal can get captured by the page behind it instead,
 // making the modal feel "stuck" even though its own content is scrollable.
+// นับจำนวนหน้าต่างที่เปิดซ้อนกัน แล้วปลดล็อกเมื่อปิดครบทุกอัน — แบบเดิมจำค่า overflow ตอนเปิด
+// ถ้าหน้าต่างซ้อนกันปิดผิดลำดับ จะคืนค่า "hidden" กลับไป ทำให้หน้าเว็บเลื่อนไม่ได้อีกเลย
+let scrollLocks = 0;
+let scrollLockY = 0;
 function useLockBodyScroll(active = true) {
   useEffect(() => {
-    if (!active) return;
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = original; };
+    if (!active) return undefined;
+    if (scrollLocks === 0) { scrollLockY = window.scrollY || 0; document.body.style.overflow = "hidden"; }
+    scrollLocks += 1;
+    return () => {
+      scrollLocks = Math.max(0, scrollLocks - 1);
+      if (scrollLocks === 0) { document.body.style.overflow = ""; window.scrollTo(0, scrollLockY); }
+    };
   }, [active]);
 }
 let eventCounter = 100;
@@ -3697,7 +3705,7 @@ function SettingsModal({ termsText, setTermsText, bankInfo, setBankInfo, onClose
 /* ================= public homepage ================= */
 // Placeholder company landing page. Structure follows a standard rental-company site;
 // visual design is intentionally simple so it can be replaced with a real design later.
-function HomePage({ cars, onBook, onStaffLogin }) {
+function HomePage({ cars, onBook, onStaffLogin, staffSignedIn }) {
   const [wideHome, setWideHome] = useState(() => { const p = loadLayoutPref(); return p === "desktop" ? true : p === "mobile" ? false : null; });
   const [winW, setWinW] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => {
@@ -3732,6 +3740,7 @@ function HomePage({ cars, onBook, onStaffLogin }) {
           <div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-lg font-bold uppercase text-white">{COMPANY.name}</div>
           <div className="flex items-center gap-2">
             <button onClick={() => { const next = !wide; setWideHome(next); saveLayoutPref(next ? "desktop" : "mobile"); }} title={`กว้าง ${winW}px`} className="text-[11px] px-2 py-1.5 rounded-md flex items-center gap-1" style={{ color: "#9BA0A8" }}><Eye size={12} />{wide ? "มือถือ" : "คอม"}</button>
+            {staffSignedIn && <button onClick={onStaffLogin} className="text-[12px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1" style={{ border: "1px solid #FFFFFF44", color: "#FFFFFF" }}><Lock size={12} />หลังบ้าน</button>}
             <button onClick={onBook} className="text-[12px] font-semibold px-3 py-1.5 rounded-full" style={{ background: PAPER, color: INK }}>จองรถ</button>
           </div>
         </div>
@@ -4179,9 +4188,58 @@ const SCREEN_BG = { background: BOARD, backgroundImage: "radial-gradient(#3A3E45
 const dbInputCls = "w-full text-[13px] rounded-md px-2.5 py-2 outline-none";
 const dbInputStyle = { background: "#FFFFFF", border: `1px solid ${PAPER_LINE}`, color: INK };
 
+// ช่องรหัสผ่านพร้อมปุ่มรูปตา กดเพื่อดูว่าพิมพ์ถูกไหมก่อนกดเข้าระบบ
+function PasswordInput({ value, onChange, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input type={show ? "text" : "password"} autoComplete={autoComplete} className={dbInputCls} style={{ ...dbInputStyle, paddingRight: 40 }}
+        placeholder={placeholder} value={value} onChange={onChange} />
+      <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+        className="absolute right-1 top-1/2 -translate-y-1/2 p-2" style={{ color: MUTE }}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+    </div>
+  );
+}
+
+function DbResetPasswordScreen({ onDone }) {
+  const [pw, setPw] = useState(""); const [pw2, setPw2] = useState("");
+  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [ok, setOk] = useState(false);
+  const submit = async () => {
+    if (pw.length < 8) { setErr("รหัสผ่านต้องยาวอย่างน้อย 8 ตัว"); return; }
+    if (pw !== pw2) { setErr("รหัสผ่านสองช่องไม่ตรงกัน"); return; }
+    setBusy(true); setErr("");
+    try { await setNewPassword(pw); setOk(true); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="min-h-screen w-full overflow-x-hidden flex items-center justify-center p-4" style={SCREEN_BG}>
+      <style>{FONTS}</style>
+      <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: PAPER }}>
+        <div className="text-center mb-4"><div className="text-[16px] font-semibold" style={{ color: INK }}>ตั้งรหัสผ่านใหม่</div><div className="text-[12px]" style={{ color: MUTE }}>{COMPANY.name} · หลังบ้าน</div></div>
+        {ok ? (<>
+          <div className="rounded-md p-3 mb-3 text-[12px]" style={{ background: "#3A7D5C14", color: "#3A7D5C" }}>ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว ครั้งต่อไปใช้รหัสนี้เข้าระบบได้เลย</div>
+          <button onClick={onDone} className="w-full py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: INK, color: PAPER }}>เข้าสู่ระบบหลังบ้าน</button>
+        </>) : (
+          <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-2">
+            <PasswordInput autoComplete="new-password" placeholder="รหัสผ่านใหม่ (อย่างน้อย 8 ตัว)" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} />
+            <PasswordInput autoComplete="new-password" placeholder="พิมพ์รหัสผ่านใหม่อีกครั้ง" value={pw2} onChange={(e) => { setPw2(e.target.value); setErr(""); }} />
+            {err && <div className="text-[11px]" style={{ color: "#C1502E" }}>{err}</div>}
+            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: INK, color: PAPER, opacity: busy ? 0.6 : 1 }}>{busy ? "กำลังบันทึก…" : "บันทึกรหัสผ่านใหม่"}</button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DbLoginScreen({ onLogin, onPublicView, onBackHome }) {
   const [email, setEmail] = useState(""); const [pw, setPw] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(true); const [inactive, setInactive] = useState("");
+  const [forgot, setForgot] = useState(false); const [sentTo, setSentTo] = useState("");
+  const sendReset = async () => {
+    if (!email.trim()) { setErr("กรุณากรอกอีเมลที่ใช้เข้าระบบ"); return; }
+    setBusy(true); setErr("");
+    try { await requestPasswordReset(email); setSentTo(email.trim()); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
   const handle = (p) => {
     if (!p) return;
     if (!p.active) { setInactive(p.email); return; }
@@ -4204,12 +4262,29 @@ function DbLoginScreen({ onLogin, onPublicView, onBackHome }) {
             <div className="rounded-md p-3 mb-3 text-[12px]" style={{ background: "#D69A2D14", color: "#9A6A12" }}>บัญชี <b>{inactive}</b> ยังไม่ได้เปิดใช้งาน<br />ให้เจ้าของร้านเข้าเมนู “จัดการผู้ใช้” แล้วกดเปิดสิทธิ์ให้ก่อน</div>
             <button onClick={async () => { await signOut(); setInactive(""); }} className="w-full py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: INK, color: PAPER }}>ออกจากระบบ</button>
           </div>
+        ) : forgot ? (
+          sentTo ? (<>
+            <div className="rounded-md p-3 mb-3 text-[12px] space-y-1" style={{ background: "#3A7D5C14", color: "#3A7D5C" }}>
+              <div>ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ <b>{sentTo}</b> แล้ว</div>
+              <div>เปิดอีเมลแล้วกดลิงก์ในเมล ระบบจะพากลับมาหน้าตั้งรหัสใหม่ (ถ้าไม่เห็นให้ดูในโฟลเดอร์จดหมายขยะ/Spam)</div>
+            </div>
+            <button onClick={() => { setForgot(false); setSentTo(""); }} className="w-full py-2.5 rounded-lg text-[13px] font-semibold" style={{ background: INK, color: PAPER }}>กลับไปหน้าเข้าสู่ระบบ</button>
+          </>) : (
+            <form onSubmit={(e) => { e.preventDefault(); sendReset(); }}>
+              <div className="text-[12px] mb-2" style={{ color: INK }}>กรอกอีเมลที่ใช้เข้าระบบ ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้ทางอีเมล</div>
+              <input type="email" autoComplete="username" className={`${dbInputCls} mb-1`} style={dbInputStyle} placeholder="อีเมล" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} />
+              {err && <div className="text-[11px] mb-2" style={{ color: "#C1502E" }}>{err}</div>}
+              <button type="submit" disabled={busy} className="w-full py-2.5 rounded-lg text-[13px] font-semibold mt-2" style={{ background: INK, color: PAPER, opacity: busy ? 0.6 : 1 }}>{busy ? "กำลังส่ง…" : "ส่งลิงก์ตั้งรหัสใหม่"}</button>
+              <button type="button" onClick={() => { setForgot(false); setErr(""); }} className="w-full py-2 text-[12px] mt-1" style={{ color: MUTE }}>ยกเลิก</button>
+            </form>
+          )
         ) : (
           <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
             <input type="email" autoComplete="username" className={`${dbInputCls} mb-2`} style={dbInputStyle} placeholder="อีเมล" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} />
-            <input type="password" autoComplete="current-password" className={`${dbInputCls} mb-1`} style={dbInputStyle} placeholder="รหัสผ่าน" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} />
-            {err && <div className="text-[11px] mb-2" style={{ color: "#C1502E" }}>{err}</div>}
-            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-lg text-[13px] font-semibold mt-2" style={{ background: INK, color: PAPER, opacity: busy ? 0.6 : 1 }}>{busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}</button>
+            <PasswordInput autoComplete="current-password" placeholder="รหัสผ่าน" value={pw} onChange={(e) => { setPw(e.target.value); setErr(""); }} />
+            {err && <div className="text-[11px] mt-1 mb-2" style={{ color: "#C1502E" }}>{err}</div>}
+            <button type="submit" disabled={busy} className="w-full py-2.5 rounded-lg text-[13px] font-semibold mt-3" style={{ background: INK, color: PAPER, opacity: busy ? 0.6 : 1 }}>{busy ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}</button>
+            <button type="button" onClick={() => { setForgot(true); setErr(""); }} className="w-full py-2 text-[12px] mt-1 underline" style={{ color: "#3B5BA5" }}>ลืมรหัสผ่าน?</button>
           </form>
         )}
         <button onClick={onPublicView} className="w-full py-2.5 rounded-lg text-[12.5px] font-medium mt-3 flex items-center justify-center gap-1.5" style={{ border: `1px solid #3B5BA5`, color: "#3B5BA5" }}><Eye size={14} />เปิดหน้าลูกค้า</button>
@@ -4299,7 +4374,10 @@ export default function App() {
   // Entry routing. In production these map to real URLs:
   //   "home"  -> yourdomain.com          (public company site)
   //   "staff" -> yourdomain.com/admin    (staff login)
-  const [entry, setEntry] = useState("home");
+  // ลิงก์ /admin = เข้าหน้าล็อกอินพนักงานตรงๆ ไม่ต้องหาปุ่มท้ายหน้า
+  const [entry, setEntry] = useState(() => (typeof window !== "undefined" && window.location.pathname.startsWith("/admin") ? "staff" : "home"));
+  const [recovering, setRecovering] = useState(DB_MODE && OPENED_FROM_RESET_LINK);   // เปิดมาจากลิงก์ลืมรหัสผ่าน
+  const [staffSignedIn, setStaffSignedIn] = useState(false);                          // เครื่องนี้เคยล็อกอินพนักงานไว้
   const [cars, setCars] = useState(() => (saved && saved.cars) || demo(INITIAL_CARS, []));
   const [overhead, setOverhead] = useState(() => (saved && saved.overhead) || demo(DEFAULT_OVERHEAD, EMPTY_OVERHEAD));
   const [scheduleEvents, setScheduleEvents] = useState(() => {
@@ -4383,7 +4461,12 @@ export default function App() {
   };
   const refreshPublic = async () => { try { setPublicData(await loadPublicData()); } catch (e) { setDbError(e.message || String(e)); } };
 
-  useEffect(() => { if (DB_MODE) refreshPublic(); }, []);
+  useEffect(() => {
+    if (!DB_MODE) return undefined;
+    refreshPublic();
+    currentProfile().then((p) => setStaffSignedIn(!!(p && p.active))).catch(() => {});
+    return onPasswordRecovery(() => setRecovering(true));
+  }, []);
   const sessionId = session ? session.id : null;
   useEffect(() => {
     if (!DB_MODE || !sessionId) return undefined;
@@ -4434,8 +4517,9 @@ export default function App() {
 
   const pub = DB_MODE ? publicData : null;
   const enterStaff = (acc) => { setSession(acc); setTab(ROLE_TABS[acc.role][0]); };
+  if (recovering) return <DbResetPasswordScreen onDone={() => { setRecovering(false); setEntry("staff"); }} />;
   if (publicMode) return <CustomerAvailabilityView cars={pub ? pub.cars : cars} scheduleEvents={pub ? pub.events : scheduleEvents} onExit={() => { setPublicMode(false); setEntry("home"); }} onSubmitBooking={submitCustomerBooking} termsText={pub && pub.termsText ? pub.termsText : termsText} bankInfo={pub && pub.bankInfo.length ? pub.bankInfo : bankInfo} />;
-  if (!session && entry === "home") return <HomePage cars={pub ? pub.cars : cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} />;
+  if (!session && entry === "home") return <HomePage cars={pub ? pub.cars : cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} staffSignedIn={staffSignedIn} />;
   if (!session && DB_MODE) return <DbLoginScreen onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
   if (!session) return <LoginScreen accounts={accounts} onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
   if (DB_MODE && !dbLoaded) return <DbLoadingScreen error={dbError} onRetry={() => { setDbError(""); enqueue(reloadNow); }} onLogout={async () => { await signOut(); setSession(null); setEntry("home"); }} />;
@@ -4465,6 +4549,7 @@ export default function App() {
   const logout = () => {
     if (DB_MODE) {
       signOut();
+      setStaffSignedIn(false);
       synced.current = {}; setDbLoaded(false); setDbError("");
       setCars([]); setBookings([]); setScheduleEvents([]); setClaims([]); setOtherExpenses([]); setOverhead(EMPTY_OVERHEAD);
       refreshPublic();

@@ -335,6 +335,24 @@ export async function signIn(email, password) {
   return currentProfile();
 }
 export async function signOut() { await supabase.auth.signOut(); }
+
+/* ---------- ลืมรหัสผ่าน ----------
+ * ส่งอีเมลลิงก์ตั้งรหัสใหม่ → กดลิงก์ → กลับมาที่ /admin พร้อมสิทธิ์ชั่วคราว → ตั้งรหัสใหม่
+ * ต้องเพิ่มโดเมนเว็บใน Supabase → Authentication → URL Configuration → Redirect URLs */
+// อ่านก่อนที่ supabase-js จะล้าง #access_token ออกจากลิงก์
+export const OPENED_FROM_RESET_LINK = typeof window !== "undefined" && /type=recovery/.test(window.location.hash || "");
+export async function requestPasswordReset(email) {
+  const res = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/admin` });
+  if (res.error) throw new Error(res.error.message);
+}
+export function onPasswordRecovery(cb) {
+  const { data } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") cb(); });
+  return () => data.subscription.unsubscribe();
+}
+export async function setNewPassword(password) {
+  const res = await supabase.auth.updateUser({ password });
+  if (res.error) throw new Error(res.error.message);
+}
 export const sessionFromProfile = (p, email) => ({ id: p.id, name: p.full_name || email, role: p.role, email });
 
 export async function listProfiles() {
