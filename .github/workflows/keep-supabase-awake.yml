@@ -1,0 +1,22 @@
+# Supabase แพ็กเกจฟรีจะพักโปรเจกต์อัตโนมัติถ้าไม่มีการใช้งาน 7 วัน → เว็บล็อกอินไม่ได้/ไม่ขึ้นรถ
+# งานนี้เรียกฐานข้อมูลวันละครั้งให้ระบบรู้ว่ายังใช้งานอยู่ (รันบนเครื่องของ GitHub ไม่ต้องเปิดคอม)
+# ถ้าเรียกไม่สำเร็จ (เช่น ถูกพักไปแล้ว) งานจะขึ้นสีแดง และ GitHub ส่งอีเมลแจ้งเจ้าของ repo
+name: keep-supabase-awake
+
+on:
+  schedule:
+    - cron: "0 1 * * *"   # ทุกวัน 08:00 เวลาไทย
+  workflow_dispatch:       # กดรันเองได้จากแท็บ Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: เรียกฐานข้อมูล
+        run: |
+          URL=$(jq -r .url src/supabase.json)
+          KEY=$(jq -r .publishableKey src/supabase.json)
+          code=$(curl -s -o body.txt -w "%{http_code}" "$URL/rest/v1/public_vehicles?select=id&limit=1" -H "apikey: $KEY")
+          echo "HTTP $code"; head -c 200 body.txt; echo
+          test "$code" = "200"
