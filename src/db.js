@@ -43,8 +43,11 @@ const dateOrNull = (v) => (v ? v : null);
 const num = (v, d = 0) => (v === null || v === undefined || v === "" || isNaN(Number(v)) ? d : Number(v));
 const numOrNull = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v)) ? null : Number(v));
 
+// "Failed to fetch" = ติดต่อเซิร์ฟเวอร์ไม่ได้เลย (เน็ตหลุด หรือ Supabase พักโปรเจกต์เพราะไม่มีการใช้งาน 7 วัน)
+export const OFFLINE_MESSAGE = "ติดต่อระบบฐานข้อมูลไม่ได้ในขณะนี้ — ตรวจสอบอินเทอร์เน็ต หรือแจ้งผู้ดูแลระบบ (ฐานข้อมูลอาจถูกพักชั่วคราว)";
+const friendly = (msg) => (/failed to fetch|networkerror|load failed|fetch failed/i.test(msg || "") ? OFFLINE_MESSAGE : msg);
 function check(res, what) {
-  if (res.error) throw new Error(`${what}: ${res.error.message}`);
+  if (res.error) throw new Error(friendly(res.error.message) === OFFLINE_MESSAGE ? OFFLINE_MESSAGE : `${what}: ${res.error.message}`);
   return res.data;
 }
 
@@ -316,7 +319,7 @@ export async function submitBookingRequest(req, car) {
     p_travel_ticket_path: ticket, p_reservation_slip_path: slip, p_terms_accepted: !!req.termsAccepted,
     p_notes: "จองผ่านหน้าลูกค้า (self-service) — รอเจ้าหน้าที่ตรวจสอบและยืนยัน",
   });
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) throw new Error(friendly(res.error.message));
   return res.data;
 }
 
@@ -331,7 +334,7 @@ export async function currentProfile() {
 }
 export async function signIn(email, password) {
   const res = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-  if (res.error) throw new Error(res.error.message === "Invalid login credentials" ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง" : res.error.message);
+  if (res.error) throw new Error(res.error.message === "Invalid login credentials" ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง" : friendly(res.error.message));
   return currentProfile();
 }
 export async function signOut() { await supabase.auth.signOut(); }
@@ -343,7 +346,7 @@ export async function signOut() { await supabase.auth.signOut(); }
 export const OPENED_FROM_RESET_LINK = typeof window !== "undefined" && /type=recovery/.test(window.location.hash || "");
 export async function requestPasswordReset(email) {
   const res = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/admin` });
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) throw new Error(friendly(res.error.message));
 }
 export function onPasswordRecovery(cb) {
   const { data } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") cb(); });

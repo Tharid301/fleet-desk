@@ -4518,8 +4518,15 @@ export default function App() {
   const pub = DB_MODE ? publicData : null;
   const enterStaff = (acc) => { setSession(acc); setTab(ROLE_TABS[acc.role][0]); };
   if (recovering) return <DbResetPasswordScreen onDone={() => { setRecovering(false); setEntry("staff"); }} />;
-  if (publicMode) return <CustomerAvailabilityView cars={pub ? pub.cars : cars} scheduleEvents={pub ? pub.events : scheduleEvents} onExit={() => { setPublicMode(false); setEntry("home"); }} onSubmitBooking={submitCustomerBooking} termsText={pub && pub.termsText ? pub.termsText : termsText} bankInfo={pub && pub.bankInfo.length ? pub.bankInfo : bankInfo} />;
-  if (!session && entry === "home") return <HomePage cars={pub ? pub.cars : cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} staffSignedIn={staffSignedIn} />;
+  // ฐานข้อมูลติดต่อไม่ได้ → บอกลูกค้าให้โทรจองแทน ไม่ปล่อยหน้าว่าง
+  const outage = DB_MODE && !publicData && dbError ? (
+    <div className="fixed top-0 inset-x-0 z-[70] px-4 py-2.5 text-center text-[12.5px]" style={{ background: "#C1502E", color: "#FFFFFF" }}>
+      ระบบจองออนไลน์ขัดข้องชั่วคราว — จองหรือสอบถามได้ทางโทรศัพท์ <a href={`tel:${COMPANY.phone}`} className="font-semibold underline">{COMPANY.phone}</a>
+      <button onClick={() => { setDbError(""); refreshPublic(); }} className="ml-2 underline">ลองใหม่</button>
+    </div>
+  ) : null;
+  if (publicMode) return <>{outage}<CustomerAvailabilityView cars={pub ? pub.cars : cars} scheduleEvents={pub ? pub.events : scheduleEvents} onExit={() => { setPublicMode(false); setEntry("home"); }} onSubmitBooking={submitCustomerBooking} termsText={pub && pub.termsText ? pub.termsText : termsText} bankInfo={pub && pub.bankInfo.length ? pub.bankInfo : bankInfo} /></>;
+  if (!session && entry === "home") return <>{outage}<HomePage cars={pub ? pub.cars : cars} onBook={() => setPublicMode(true)} onStaffLogin={() => setEntry("staff")} staffSignedIn={staffSignedIn} /></>;
   if (!session && DB_MODE) return <DbLoginScreen onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
   if (!session) return <LoginScreen accounts={accounts} onLogin={enterStaff} onPublicView={() => setPublicMode(true)} onBackHome={() => setEntry("home")} />;
   if (DB_MODE && !dbLoaded) return <DbLoadingScreen error={dbError} onRetry={() => { setDbError(""); enqueue(reloadNow); }} onLogout={async () => { await signOut(); setSession(null); setEntry("home"); }} />;
